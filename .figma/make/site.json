@@ -1,0 +1,10 @@
+{
+  "description": "Streamline warehouse operations for small and medium enterprises in Mexico with a mobile app that enables efficient inventory management through QR code scanning.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}

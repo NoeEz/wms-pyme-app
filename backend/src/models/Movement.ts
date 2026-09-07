@@ -1,0 +1,32 @@
+import { Schema, model, InferSchemaType, Types } from "mongoose";
+
+export const MOVEMENT_TYPES = ["inbound", "outbound", "transfer"] as const;
+export type MovementType = (typeof MOVEMENT_TYPES)[number];
+
+export const MOVEMENT_STATUSES = ["draft", "local_pending", "syncing", "completed", "failed"] as const;
+export type MovementStatus = (typeof MOVEMENT_STATUSES)[number];
+
+const movementLineSchema = new Schema({
+  productId: { type: Schema.Types.ObjectId, ref: "Product", required: true },
+  quantity: { type: Number, required: true },
+  sourceLocationId: { type: Schema.Types.ObjectId, ref: "Location" },
+  destinationLocationId: { type: Schema.Types.ObjectId, ref: "Location" },
+  lot: { type: String },
+  serial: { type: String },
+}, { _id: false });
+
+const movementSchema = new Schema({
+  folio: { type: String },
+  type: { type: String, enum: MOVEMENT_TYPES, required: true },
+  status: { type: String, enum: MOVEMENT_STATUSES, default: "completed" },
+  companyId: { type: Schema.Types.ObjectId, ref: "Company", required: true },
+  warehouseId: { type: Schema.Types.ObjectId, ref: "Warehouse", required: true },
+  userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
+  reference: { type: String },
+  lines: { type: [movementLineSchema], required: true, validate: (v: unknown[]) => v.length > 0 },
+  syncedAt: { type: Date },
+}, { timestamps: { createdAt: "createdAt", updatedAt: false } });
+
+export type MovementDoc = InferSchemaType<typeof movementSchema> & { _id: Types.ObjectId };
+
+export const Movement = model("Movement", movementSchema);

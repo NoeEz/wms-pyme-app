@@ -1,0 +1,33 @@
+{
+  "expo": {
+    "name": "WMS PyME",
+    "slug": "wms-pyme-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "backgroundColor": "#E8EDF2"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.wmspyme.app"
+    },
+    "android": {
+      "package": "com.wmspyme.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#E8EDF2"
+      }
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Esta app usa la cámara para escanear códigos QR de productos."
+        }
+      ],
+      "expo-asset",
+      "expo-secure-store"
+    ]
+  }
+}
