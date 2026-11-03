@@ -10,7 +10,7 @@ Todo el backend (API + MongoDB) corre en Docker. Un solo comando:
 docker compose up -d --build
 ```
 
-Esto levanta MongoDB (replica set de un solo nodo, para transacciones) en `:27017`, espera a que esté sana, construye y levanta la API en `:4000`, y **siembra los datos demo automáticamente la primera vez** (si la base está vacía) — no hace falta correr `npm install` ni `npm run seed` a mano. En arranques posteriores, si ya hay datos, no vuelve a sembrar.
+Esto levanta MongoDB (replica set de un solo nodo, para transacciones) en `:27017`, espera a que esté sana, construye y levanta la API en `:4000`, y **siembra los datos demo automáticamente la primera vez** (si la base está vacía) — no hace falta correr `npm install` ni `npm run seed` a mano. En arranques posteriores, si ya hay datos, no vuelve a sembrar. La siembra incluye 30 días de historial (`src/scripts/seedHistory.ts`: entradas, salidas, transferencias, algunos movimientos sincronizados tarde y dos conteos físicos) para que el tablero del portal tenga datos; las pruebas agregan sus propios registros, así que después de correrlas conviene resembrar (`docker compose exec api node -e "require('./dist/db/connect').connectDB().then(()=>require('./dist/scripts/seed').runSeed()).then(()=>process.exit(0))"`) o `docker compose down -v`.
 
 ```bash
 docker compose logs -f api   # ver logs en vivo

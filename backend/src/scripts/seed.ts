@@ -7,6 +7,9 @@ import { Product } from "../models/Product";
 import { StockBalance } from "../models/StockBalance";
 import { User } from "../models/User";
 import { Movement } from "../models/Movement";
+import { AuditLog } from "../models/AuditLog";
+import { InventoryCount } from "../models/InventoryCount";
+import { seedHistory } from "./seedHistory";
 
 const DEMO_PASSWORD = "demo1234";
 
@@ -14,6 +17,8 @@ export async function runSeed(): Promise<void> {
   console.log("[seed] wiping demo collections...");
   await Promise.all([
     Movement.deleteMany({}),
+    InventoryCount.deleteMany({}),
+    AuditLog.deleteMany({}),
     StockBalance.deleteMany({}),
     Location.deleteMany({}),
     Product.deleteMany({}),
@@ -41,7 +46,7 @@ export async function runSeed(): Promise<void> {
     { warehouseId: centroDistribucion._id, zone: "Zona A", aisle: "Pasillo 01", rack: "Rack 01", position: "Posición 01", code: "A-01-R01-P01" },
     { warehouseId: centroDistribucion._id, zone: "Zona A", aisle: "Pasillo 02", rack: "Rack 01", position: "Posición 03", code: "A-02-R01-P03" },
   ]);
-  const [locA, locB, locC] = locations;
+  const [locA, locB, locC, locD] = locations;
 
   const [balero, banda, filtro] = await Product.insertMany([
     {
@@ -50,7 +55,7 @@ export async function runSeed(): Promise<void> {
     },
     {
       companyId: company._id, sku: "BAN-2M", name: "Banda transportadora 2 m",
-      barcodeValues: ["BAN-2M"], unit: "pza", tracking: "lot", lowStockThreshold: 10, cost: 1450,
+      barcodeValues: ["BAN-2M"], unit: "pza", tracking: "lot", lowStockThreshold: 25, cost: 1450,
     },
     {
       companyId: company._id, customerId: refValle._id, sku: "FIL-AC-90", name: "Filtro de aceite 90 mm",
@@ -58,19 +63,30 @@ export async function runSeed(): Promise<void> {
     },
   ]);
 
-  await StockBalance.insertMany([
-    { productId: balero._id, locationId: locA._id, available: 128, reserved: 0 },
-    { productId: banda._id, locationId: locB._id, available: 7, reserved: 0 },
-    { productId: balero._id, locationId: locC._id, available: 16, reserved: 0 },
-    { productId: filtro._id, locationId: locB._id, available: 240, reserved: 0 },
-  ]);
-
   const passwordHash = await bcrypt.hash(DEMO_PASSWORD, 10);
-  await User.insertMany([
+  const [maria, carlos] = await User.insertMany([
     { companyId: company._id, name: "María López", email: "maria.lopez@nova.mx", passwordHash, role: "operator" },
     { companyId: company._id, name: "Carlos Ruiz", email: "carlos.ruiz@nova.mx", passwordHash, role: "supervisor" },
     { companyId: company._id, name: "Admin Nova", email: "admin@nova.mx", passwordHash, role: "admin" },
     { companyId: company._id, customerId: refValle._id, name: "Compras Ref. del Valle", email: "compras@refvalle.mx", passwordHash, role: "client" },
+  ]);
+
+  // Last 30 days of activity for belts and filters; bearings (serialized)
+  // only have their opening stock, so they show up as slow-moving.
+  const history = await seedHistory({
+    companyId: company._id,
+    users: { operator: maria._id, supervisor: carlos._id },
+    warehouses: { north: plantaNorte._id, center: centroDistribucion._id },
+    locations: { northA: locA._id, northB: locB._id, centerA: locC._id, centerB: locD._id },
+    products: { banda: banda._id, filtro: filtro._id },
+  });
+  await StockBalance.insertMany([
+    { productId: balero._id, locationId: locA._id, available: 128, reserved: 0 },
+    { productId: balero._id, locationId: locC._id, available: 16, reserved: 0 },
+    ...[...history].map(([k, available]) => {
+      const [productId, locationId] = k.split(":");
+      return { productId, locationId, available, reserved: 0 };
+    }),
   ]);
 
   // Second, unrelated company — demos (and tests) tenant isolation. Its admin

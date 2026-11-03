@@ -146,4 +146,8 @@ test("a 3PL client sees only its own lines of a mixed movement", async () => {
 
   const listed = (await call("GET", "/movements", client)).data.movements;
   assert.ok(listed.every((m: any) => m.lines.every((l: any) => l.productId === customerProductId)));
+
+  const product = (await call("GET", `/products/${customerProductId}`, client)).data;
+  const mixed = product.recentMovements.find((m: any) => m._id === id);
+  assert.deepEqual(mixed.lines.map((l: any) => l.productId), [customerProductId]);
 });

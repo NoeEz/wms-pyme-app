@@ -31,6 +31,8 @@ Set `EXPO_PUBLIC_API_URL` (e.g. `http://192.168.1.50:4000/api`, your computer's 
 
 Installable builds use EAS (`eas.json`): `npx eas-cli build -p android --profile preview` produces an internal-distribution APK (needs an Expo account; edit the `preview` profile's `EXPO_PUBLIC_API_URL` first).
 
+The repo also holds the **web portal** (`web/`, phase 3): a separate Vite + React + Tailwind 4 package with its own `package.json`/`node_modules` — run it with `npm --prefix web install && npm --prefix web run dev` (see `web/README.md`). `metro.config.js` blocks `web/` from Metro and the root `tsconfig.json` excludes it, so its React copy never mixes with the app's.
+
 ## Project Structure
 
 - `index.ts` - Entry point; imports `src/global.css` and calls `registerRootComponent(App)` from `expo`

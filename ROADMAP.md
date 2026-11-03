@@ -11,7 +11,7 @@ Plan de escalación del producto, desde el MVP actual hasta un WMS multi-empresa
 | 0 | MVP operativo móvil | Operar un almacén desde el teléfono contra una API real | 🟢 Completa |
 | 1 | Cierre del MVP | Quitar simulaciones y dejar el MVP demostrable de punta a punta | 🟢 Completa |
 | 2 | Operación en campo | Que funcione en un almacén real: sin señal, con cámara y lectores | 🟡 Implementada, falta probar en dispositivo |
-| 3 | Portal web y administración | Que la PyME y sus clientes 3PL gestionen y monitoreen sin tocar la base de datos | 🟡 En curso |
+| 3 | Portal web y administración | Que la PyME y sus clientes 3PL gestionen y monitoreen sin tocar la base de datos | 🟢 Completa (falta probar con usuarios reales) |
 | 4 | Despliegue y multi-empresa | Servir a varias PyMEs en un mismo servidor (VPS) | ⚪ Pendiente |
 | 5 | Escalación funcional | Funciones de WMS avanzado y personalización | ⚪ Futuro |
 
@@ -74,7 +74,7 @@ Lo necesario para usarlo en un almacén real. El código está hecho y compila (
 
 **Entregable:** app instalable que funciona sin señal y escanea con cámara o lector.
 
-## Fase 3 — Portal web y administración 🟡
+## Fase 3 — Portal web y administración 🟢
 
 Decisiones tomadas (nov 2026): portal en `web/` (Vite + React + TS + Tailwind) para todos los roles; login por **código de empresa + correo**; clientes 3PL con rol `client` que ven solo sus productos (el dueño se asigna **por producto**); costo unitario opcional; conteos físicos desde el portal que generan ajustes.
 
@@ -91,13 +91,21 @@ Decisiones tomadas (nov 2026): portal en `web/` (Vite + React + TS + Tailwind) p
 - [x] KPIs (`/api/dashboard/overview`, `/stock`): precisión de inventario, días de inventario, rotación, productividad, retraso de sincronización, alertas
 - [x] Reportes (`/api/reports/*`): kardex, movimientos por periodo, existencias por ubicación
 
-**Siguientes bloques**
-- [ ] **Portal web de monitoreo** (mencionado en la tesina): tablero de existencias, movimientos del día y alertas de stock bajo
-- [ ] Gestión de catálogo desde el portal (y endpoints en la API): productos, almacenes, ubicaciones (zona/pasillo/rack/posición)
-- [ ] Gestión de usuarios y roles por empresa
-- [ ] Reportes exportables (Excel/PDF): kardex por producto, movimientos por periodo, existencias por ubicación
-- [ ] Bitácora de auditoría (quién cambió qué y cuándo)
-- [ ] Generación e impresión de etiquetas QR para productos y ubicaciones
+**Bloque 3 — Portal web (`web/`)** 🟢
+- [x] **Portal web de monitoreo** (mencionado en la tesina): tablero con KPIs, movimientos por día, alertas de stock, productividad y sincronización; se actualiza cada minuto
+- [x] Login por empresa y menú por rol (operador, supervisor, admin, cliente 3PL)
+- [x] Inventario por producto con estado (agotado / stock bajo / sin movimiento) y detalle por ubicación
+- [x] Movimientos con filtros y detalle; conteos físicos a ciegas con ajuste automático
+- [x] Gestión de catálogo: productos, almacenes, ubicaciones (zona/pasillo/rack/posición), clientes 3PL
+- [x] Gestión de usuarios y roles por empresa; empresa (código de login) y módulos
+- [x] Reportes exportables (Excel/PDF): kardex por producto, movimientos por periodo, existencias por ubicación
+- [x] Bitácora de auditoría (quién cambió qué y cuándo)
+- [x] Generación e impresión de etiquetas QR para productos y ubicaciones
+- [x] Datos demo con 30 días de historial para que el tablero tenga contenido
+
+**Pendiente de la fase**
+- [ ] Probar el portal con usuarios reales (supervisor y un cliente 3PL)
+- [ ] Que la app móvil lea las etiquetas de ubicación (`WMSPYME|v1|loc=…`) para elegir origen/destino escaneando
 
 **Entregable:** una PyME puede arrancar desde cero sin intervención técnica.
 

@@ -1,0 +1,30 @@
+@import "tailwindcss";
+
+/* Same palette as the mobile app (Tailwind's slate / indigo / emerald /
+   amber / red match its hex values), with the system font stack. */
+@theme {
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  background: var(--color-slate-50);
+  color: var(--color-slate-900);
+  -webkit-font-smoothing: antialiased;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Label sheets: only the sheet prints, edge to edge. */
+@media print {
+  body { background: white; }
+  .no-print { display: none !important; }
+  .print-area { padding: 0 !important; margin: 0 !important; box-shadow: none !important; border: 0 !important; }
+  @page { margin: 10mm; }
+}

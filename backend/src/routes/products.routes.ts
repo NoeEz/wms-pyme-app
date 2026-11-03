@@ -46,9 +46,15 @@ productsRouter.get("/:id", async (req, res, next) => {
     const balances = await StockBalance.find({ productId: product._id }).populate("locationId");
     const recentMovements = await Movement.find({ companyId: req.auth!.companyId, "lines.productId": product._id })
       .sort({ createdAt: -1 })
-      .limit(10);
+      .limit(10)
+      .lean();
 
-    res.json({ product, balances, recentMovements });
+    // A 3PL client must not see the other lines (other owners' products) of a shared movement.
+    const visible = req.auth!.role === "client"
+      ? recentMovements.map(m => ({ ...m, lines: m.lines.filter(l => String(l.productId) === String(product._id)) }))
+      : recentMovements;
+
+    res.json({ product, balances, recentMovements: visible });
   } catch (err) {
     next(err);
   }

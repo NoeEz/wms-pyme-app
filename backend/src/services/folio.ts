@@ -7,8 +7,7 @@ const PREFIX: Record<MovementType, string> = {
   adjustment: "AJU",
 };
 
-export function generateFolio(type: MovementType, sequence: number): string {
-  const now = new Date();
+export function generateFolio(type: MovementType, sequence: number, now = new Date()): string {
   const y = now.getFullYear();
   const m = String(now.getMonth() + 1).padStart(2, "0");
   const d = String(now.getDate()).padStart(2, "0");
