@@ -20,6 +20,7 @@ export interface Warehouse {
 
 export interface Location {
   id?: string;
+  code?: string;
   zone: string;
   aisle: string;
   rack: string;

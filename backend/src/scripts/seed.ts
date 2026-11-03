@@ -48,6 +48,21 @@ export async function runSeed(): Promise<void> {
   ]);
   const [locA, locB, locC, locD] = locations;
 
+  // The rest of Planta Norte, so the warehouse map looks like a warehouse:
+  // zone A with 3 aisles, B with 2, C with 1; 2 racks of 4 positions each.
+  const plan: [string, number][] = [["A", 3], ["B", 2], ["C", 1]];
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const existing = new Set(locations.filter(l => l.warehouseId.equals(plantaNorte._id)).map(l => l.code));
+  const extraLocations = plan.flatMap(([zone, aisles]) =>
+    Array.from({ length: aisles }, (_, a) => Array.from({ length: 2 }, (_, r) => Array.from({ length: 4 }, (_, p) => ({
+      warehouseId: plantaNorte._id,
+      zone: `Zona ${zone}`, aisle: `Pasillo ${pad(a + 1)}`, rack: `Rack ${pad(r + 1)}`, position: `Posición ${pad(p + 1)}`,
+      code: `${zone}-${pad(a + 1)}-R${pad(r + 1)}-P${pad(p + 1)}`,
+    })))).flat(2),
+  ).filter(l => !existing.has(l.code));
+  const extra = await Location.insertMany(extraLocations);
+  const extraByCode = new Map(extra.map(l => [l.code, l._id]));
+
   const [balero, banda, filtro] = await Product.insertMany([
     {
       companyId: company._id, sku: "BAL-6204", name: "Balero industrial 6204",
@@ -83,6 +98,9 @@ export async function runSeed(): Promise<void> {
   await StockBalance.insertMany([
     { productId: balero._id, locationId: locA._id, available: 128, reserved: 0 },
     { productId: balero._id, locationId: locC._id, available: 16, reserved: 0 },
+    // A few bearings spread over the plant (opening stock, like the rest of their balance).
+    ...([["A-01-R01-P01", 12], ["A-01-R01-P03", 20], ["A-02-R02-P02", 8], ["B-02-R01-P04", 15], ["C-01-R01-P01", 24]] as const)
+      .map(([code, available]) => ({ productId: balero._id, locationId: extraByCode.get(code)!, available, reserved: 0 })),
     ...[...history].map(([k, available]) => {
       const [productId, locationId] = k.split(":");
       return { productId, locationId, available, reserved: 0 };

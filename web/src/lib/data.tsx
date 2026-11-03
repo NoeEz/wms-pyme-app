@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api, qs } from "./api";
-import type { Customer, Location, Product, Warehouse } from "./types";
+import type { Balance, Customer, Location, Product, Warehouse } from "./types";
 
 // Catalog queries shared by several pages, plus the portal-wide warehouse
 // filter ("" = all warehouses) shown in the top bar.
@@ -27,6 +27,23 @@ export function useLocations(warehouseId: string, includeInactive = false) {
     queryKey: ["locations", { warehouseId, includeInactive }],
     queryFn: () => api.get<{ locations: Location[] }>(`/locations${qs({ warehouseId, includeInactive: includeInactive || undefined })}`).then(r => r.locations),
     staleTime: 30_000,
+  });
+}
+
+/** Units on hand per location id in a warehouse (locations without stock are absent). */
+export function useOccupancy(warehouseId: string) {
+  return useQuery({
+    queryKey: ["inventory", "occupancy", { warehouseId }],
+    queryFn: async () => {
+      const { balances } = await api.get<{ balances: Balance[] }>(`/inventory${qs({ warehouseId })}`);
+      const units = new Map<string, number>();
+      for (const b of balances) {
+        if (b.available > 0 && b.locationId) units.set(b.locationId._id, (units.get(b.locationId._id) ?? 0) + b.available);
+      }
+      return units;
+    },
+    enabled: !!warehouseId,
+    staleTime: 15_000,
   });
 }
 

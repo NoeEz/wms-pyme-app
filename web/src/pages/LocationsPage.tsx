@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { errorMessage } from "../lib/api";
 import { useSave } from "../lib/crud";
-import { useLocations, useWarehouseFilter, useWarehouses } from "../lib/data";
+import { useLocations, useOccupancy, useWarehouseFilter, useWarehouses } from "../lib/data";
 import type { Location } from "../lib/types";
+import { WarehouseMap } from "../components/WarehouseMap";
 import { Badge, Button, Card, EmptyState, ErrorBox, Field, Input, Loading, Modal, PageHeader, SearchInput, Select, Table, Toggle, td, th } from "../components/ui";
 
 // "Zona A" + "Pasillo 03" + "Rack 02" + "Posición 04" → "A-03-R02-P04", the
@@ -21,6 +22,8 @@ export default function LocationsPage() {
   useEffect(() => { if (!warehouseId && warehouses?.length) setWarehouseId(warehouses[0]._id); }, [warehouses, warehouseId]);
 
   const locations = useLocations(warehouseId, true);
+  const occupancy = useOccupancy(warehouseId);
+  const [view, setView] = useState<"list" | "map">("map");
   const [search, setSearch] = useState("");
   const [showInactive, setShowInactive] = useState(false);
   const [editing, setEditing] = useState<Location | "new" | null>(null);
@@ -44,11 +47,21 @@ export default function LocationsPage() {
           <Select value={warehouseId} onChange={e => setWarehouseId(e.target.value)} className="w-60" aria-label="Almacén">
             {warehouses?.map(w => <option key={w._id} value={w._id}>{w.name}</option>)}
           </Select>
+          <div className="flex rounded-xl border border-slate-300 bg-white p-0.5" role="group" aria-label="Vista">
+            {([["map", "Plano"], ["list", "Lista"]] as const).map(([key, label]) => (
+              <button key={key} onClick={() => setView(key)} aria-pressed={view === key}
+                className={`rounded-lg px-3 py-1.5 text-xs font-medium ${view === key ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"}`}>{label}</button>
+            ))}
+          </div>
           <SearchInput value={search} onChange={setSearch} placeholder="Buscar código, zona, pasillo…" className="min-w-60 flex-1" />
           <label className="flex items-center gap-2 text-sm text-slate-600"><Toggle checked={showInactive} onChange={setShowInactive} label="Mostrar inactivas" /> Mostrar inactivas</label>
         </div>
         {locations.isPending ? <Loading /> : locations.isError ? <div className="p-4"><ErrorBox message={errorMessage(locations.error)} /></div> : !filtered.length ? (
           <EmptyState icon="location" title="Sin ubicaciones" description="Crea la primera ubicación de este almacén." />
+        ) : view === "map" ? (
+          <div className="p-4">
+            <WarehouseMap locations={filtered} occupancy={occupancy.data ?? new Map()} onSelect={setEditing} prompt="Haz clic en una posición para editarla." />
+          </div>
         ) : (
           <Table>
             <thead><tr><th className={th}>Código</th><th className={th}>Zona</th><th className={th}>Pasillo</th><th className={th}>Rack</th><th className={th}>Posición</th><th className={th}>Estado</th></tr></thead>

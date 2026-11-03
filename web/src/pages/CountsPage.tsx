@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, errorMessage, qs } from "../lib/api";
-import { useLocations, useProducts, useWarehouseFilter, useWarehouses } from "../lib/data";
+import { useLocations, useOccupancy, useProducts, useWarehouseFilter, useWarehouses } from "../lib/data";
 import { fmtDateTime, fmtNumber } from "../lib/format";
 import type { Balance, InventoryCount, Movement } from "../lib/types";
 import { Badge, Button, Card, EmptyState, ErrorBox, Field, Input, Loading, PageHeader, Select, Table, td, th } from "../components/ui";
 import { Icon } from "../components/Icon";
+import { WarehouseMap } from "../components/WarehouseMap";
 
 interface CountLine { productId: string; sku: string; name: string; unit: string; expected: number; counted: string }
 
@@ -23,7 +24,9 @@ export default function CountsPage() {
 
   useEffect(() => { if (filterWarehouse) setWarehouseId(filterWarehouse); }, [filterWarehouse]);
   const { data: locations } = useLocations(warehouseId);
+  const { data: occupancy } = useOccupancy(warehouseId);
   const { data: products } = useProducts();
+  const location = locations?.find(l => l._id === locationId);
 
   // What the system has at the location — the starting list of the count.
   const stock = useQuery({
@@ -70,13 +73,23 @@ export default function CountsPage() {
                 {warehouses?.filter(w => w.state === "active").map(w => <option key={w._id} value={w._id}>{w.name}</option>)}
               </Select>
             </Field>
-            <Field label="Ubicación">
-              <Select value={locationId} onChange={e => { setLocationId(e.target.value); setResult(null); }} disabled={!warehouseId}>
-                <option value="">Selecciona…</option>
-                {locations?.map(l => <option key={l._id} value={l._id}>{l.code} · {l.zone} / {l.aisle}</option>)}
-              </Select>
+            <Field label="Ubicación a contar">
+              <div className="flex h-10 items-center justify-between gap-2 rounded-xl border border-slate-300 bg-white px-3 text-sm">
+                {location
+                  ? <span><span className="font-mono font-semibold text-slate-900">{location.code}</span> <span className="text-slate-500">· {location.zone} / {location.aisle}</span></span>
+                  : <span className="text-slate-400">{warehouseId ? "Elígela en el plano" : "Elige primero un almacén"}</span>}
+                {location && <button type="button" onClick={() => { setLocationId(""); setResult(null); }} className="text-xs font-medium text-indigo-600 hover:underline">Cambiar</button>}
+              </div>
             </Field>
           </div>
+
+          {warehouseId && !locationId && (
+            <div className="mt-5">
+              {locations && occupancy
+                ? <WarehouseMap locations={locations} occupancy={occupancy} onSelect={l => { setLocationId(l._id); setResult(null); }} prompt="Haz clic en la posición que vas a contar." />
+                : <Loading label="Cargando plano…" />}
+            </div>
+          )}
 
           {locationId && (
             <div className="mt-5">

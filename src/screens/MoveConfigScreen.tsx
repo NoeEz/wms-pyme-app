@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, ActivityIndicator } from "react-native";
-import { Button, Input, Icon, SelectField } from "../components/ui";
+import { View, Text, ActivityIndicator, Pressable } from "react-native";
+import { Button, Input, Icon } from "../components/ui";
+import WarehouseMap from "../components/WarehouseMap";
 import type { MoveType, Location } from "../types";
-import { fetchLocations } from "../services/locations";
+import { fetchLocations, fetchOccupancy } from "../services/locations";
 import { ApiError } from "../services/api";
 
 interface Props {
@@ -13,123 +14,106 @@ interface Props {
 }
 
 const TYPE_LABELS: Record<MoveType, { title: string; desc: string; icon: string }> = {
-  entry: { title: "Entrada de mercancía", desc: "Selecciona la ubicación donde se almacenará la mercancía.", icon: "entry" },
-  exit: { title: "Salida de mercancía", desc: "Selecciona la ubicación de donde saldrá la mercancía.", icon: "exit" },
-  transfer: { title: "Transferencia", desc: "Selecciona origen y destino del movimiento.", icon: "transfer" },
+  entry: { title: "Entrada de mercancía", desc: "Toca en el plano dónde se almacenará la mercancía.", icon: "entry" },
+  exit: { title: "Salida de mercancía", desc: "Toca en el plano de dónde saldrá la mercancía.", icon: "exit" },
+  transfer: { title: "Transferencia", desc: "Toca en el plano el origen y el destino del movimiento.", icon: "transfer" },
 };
 
-function uniqueSorted(values: string[]): string[] {
-  return [...new Set(values)].sort();
-}
+type Side = "origin" | "dest";
+// Same colors as the movement types elsewhere in the app.
+const SIDE_STYLE: Record<Side, { label: string; accent: string; tint: string }> = {
+  origin: { label: "Origen", accent: "#4F46E5", tint: "#EEF2FF" },
+  dest: { label: "Destino", accent: "#059669", tint: "#ECFDF5" },
+};
 
-function LocationPicker({ label, locations, value, onChange }: {
-  label: string;
-  locations: Location[];
-  value: Partial<Location>;
-  onChange: (v: Partial<Location>) => void;
-}) {
-  const zoneOptions = uniqueSorted(locations.map(l => l.zone));
-  const aisleOptions = value.zone ? uniqueSorted(locations.filter(l => l.zone === value.zone).map(l => l.aisle)) : [];
-  const rackOptions = value.zone && value.aisle
-    ? uniqueSorted(locations.filter(l => l.zone === value.zone && l.aisle === value.aisle).map(l => l.rack))
-    : [];
-  const positionOptions = value.zone && value.aisle && value.rack
-    ? uniqueSorted(locations.filter(l => l.zone === value.zone && l.aisle === value.aisle && l.rack === value.rack).map(l => l.position))
-    : [];
+const locationText = (l: Location) => l.code ?? `${l.zone} / ${l.aisle} / ${l.rack} / ${l.position}`;
 
-  const levels = [
-    { key: "zone" as const, label: "Zona", options: zoneOptions, dep: null },
-    { key: "aisle" as const, label: "Pasillo", options: aisleOptions, dep: "zone" as const },
-    { key: "rack" as const, label: "Rack", options: rackOptions, dep: "aisle" as const },
-    { key: "position" as const, label: "Posición", options: positionOptions, dep: "rack" as const },
-  ];
-
+/** Card that shows what is picked for one side and makes that side the active one on the plan. */
+function SideCard({ side, location, active, onPress }: { side: Side; location?: Location; active: boolean; onPress: () => void }) {
+  const { label, accent, tint } = SIDE_STYLE[side];
   return (
-    <View className="bg-white rounded-2xl border border-[#E2E8F0] shadow-sm shadow-slate-900/5 overflow-hidden">
-      <View className="px-4 py-3 bg-[#F8FAFC] border-b border-[#E2E8F0]">
-        <Text className="text-sm font-semibold text-[#475569]">{label}</Text>
-        {value.zone && value.aisle && value.rack && value.position && (
-          <Text className="text-xs font-mono text-[#4F46E5] mt-0.5">
-            {`${value.zone} / ${value.aisle} / ${value.rack} / ${value.position}`}
-          </Text>
-        )}
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={{ selected: active }}
+      style={{ borderColor: active ? accent : "#E2E8F0", borderWidth: active ? 2 : 1, backgroundColor: active ? tint : "#FFFFFF" }}
+      className="flex-1 rounded-2xl px-3.5 py-3"
+    >
+      <View className="flex-row items-center justify-between">
+        <Text style={{ color: accent }} className="text-[11px] font-bold uppercase tracking-wider">{label}</Text>
+        <Icon name={location ? "check" : "location"} size={14} color={location ? accent : "#94A3B8"} />
       </View>
-      <View className="flex-col">
-        {levels.map(({ key, label: l, options, dep }, i) => {
-          const locked = dep !== null && !value[dep];
-          return (
-            <View key={key} className={`flex-row items-center px-4 py-2.5 ${i > 0 ? "border-t border-[#F1F5F9]" : ""}`}>
-              <Text className="text-sm text-[#475569] w-20">{l}</Text>
-              <SelectField
-                disabled={locked}
-                value={value[key] ?? ""}
-                placeholder={locked ? `Selecciona ${dep ?? ""}` : `Elige ${l.toLowerCase()}`}
-                options={options}
-                onSelect={v => {
-                  const newVal = { ...value, [key]: v };
-                  if (key === "zone") { delete newVal.aisle; delete newVal.rack; delete newVal.position; }
-                  if (key === "aisle") { delete newVal.rack; delete newVal.position; }
-                  if (key === "rack") { delete newVal.position; }
-                  // Resolve the concrete backend location once all 4 levels match.
-                  const complete = newVal.zone && newVal.aisle && newVal.rack && newVal.position;
-                  const resolved = complete
-                    ? locations.find(loc => loc.zone === newVal.zone && loc.aisle === newVal.aisle && loc.rack === newVal.rack && loc.position === newVal.position)
-                    : undefined;
-                  onChange(resolved ?? newVal);
-                }}
-              />
-              <Icon name="chevron_down" size={14} color="#94A3B8" />
-            </View>
-          );
-        })}
-      </View>
-    </View>
+      {location ? (
+        <>
+          <Text className="text-sm font-bold font-mono text-[#0F172A] mt-1" numberOfLines={1}>{locationText(location)}</Text>
+          <Text className="text-[11px] text-[#64748B]" numberOfLines={1}>{location.zone} · {location.aisle}</Text>
+        </>
+      ) : (
+        <Text className="text-sm text-[#94A3B8] mt-1">{active ? "Elige en el plano" : "Sin elegir"}</Text>
+      )}
+    </Pressable>
   );
 }
 
 export default function MoveConfigScreen({ token, warehouseId, moveType, onStart }: Props) {
   const { title, desc, icon } = TYPE_LABELS[moveType];
   const [locations, setLocations] = useState<Location[] | null>(null);
+  const [occupancy, setOccupancy] = useState<Map<string, number>>(new Map());
   const [loadError, setLoadError] = useState('');
-  const [origin, setOrigin] = useState<Partial<Location>>({});
-  const [dest, setDest] = useState<Partial<Location>>({});
+  const [origin, setOrigin] = useState<Location | undefined>();
+  const [dest, setDest] = useState<Location | undefined>();
   const [reference, setReference] = useState("");
   const [error, setError] = useState("");
+
+  const needsOrigin = moveType === "exit" || moveType === "transfer";
+  const needsDest = moveType === "entry" || moveType === "transfer";
+  const [active, setActive] = useState<Side>(needsOrigin ? "origin" : "dest");
 
   useEffect(() => {
     let cancelled = false;
     fetchLocations(token, warehouseId)
       .then(locs => { if (!cancelled) setLocations(locs); })
       .catch(err => { if (!cancelled) setLoadError(err instanceof ApiError ? err.message : "No se pudieron cargar las ubicaciones."); });
+    // Occupancy is a nicety: without it every position simply shows as empty.
+    fetchOccupancy(token)
+      .then(units => { if (!cancelled) setOccupancy(units); })
+      .catch(() => {});
     return () => { cancelled = true; };
   }, [token, warehouseId]);
 
-  const isLocComplete = (l: Partial<Location>) =>
-    !!(l.zone && l.aisle && l.rack && l.position && l.id);
-
-  const needsOrigin = moveType === "exit" || moveType === "transfer";
-  const needsDest = moveType === "entry" || moveType === "transfer";
+  function handleSelect(location: Location) {
+    setError("");
+    if (active === "origin") {
+      setOrigin(location);
+      // Transfer: after the origin, go straight to picking the destination.
+      if (needsDest && !dest) setActive("dest");
+    } else {
+      setDest(location);
+      if (needsOrigin && !origin) setActive("origin");
+    }
+  }
 
   function handleStart() {
-    if (needsOrigin && !isLocComplete(origin)) {
-      setError("Selecciona la ubicación de origen completa.");
+    if (needsOrigin && !origin?.id) {
+      setError("Elige en el plano la ubicación de origen.");
+      setActive("origin");
       return;
     }
-    if (needsDest && !isLocComplete(dest)) {
-      setError("Selecciona la ubicación de destino completa.");
+    if (needsDest && !dest?.id) {
+      setError("Elige en el plano la ubicación de destino.");
+      setActive("dest");
       return;
     }
-    if (moveType === "transfer" && origin.id === dest.id) {
+    if (moveType === "transfer" && origin?.id === dest?.id) {
       setError("El origen y destino no pueden ser la misma ubicación.");
       return;
     }
     setError("");
-    onStart(
-      needsOrigin ? origin as Location : undefined,
-      needsDest ? dest as Location : undefined,
-      reference || undefined,
-    );
+    onStart(needsOrigin ? origin : undefined, needsDest ? dest : undefined, reference || undefined);
   }
+
+  const style = SIDE_STYLE[active];
+  const other = active === "origin" ? dest : origin;
 
   return (
     <View className="flex-1 bg-[#F8FAFC]">
@@ -150,7 +134,7 @@ export default function MoveConfigScreen({ token, warehouseId, moveType, onStart
         {!locations && !loadError && (
           <View className="items-center py-10">
             <ActivityIndicator size="small" color="#4F46E5" />
-            <Text className="text-sm text-[#64748B] mt-3">Cargando ubicaciones...</Text>
+            <Text className="text-sm text-[#64748B] mt-3">Cargando plano del almacén...</Text>
           </View>
         )}
 
@@ -163,23 +147,25 @@ export default function MoveConfigScreen({ token, warehouseId, moveType, onStart
 
         {locations && (
           <>
-            {needsOrigin && (
-              <View>
-                <Text className="text-xs font-semibold uppercase tracking-wide text-[#64748B] mb-2">
-                  Ubicación de origen
-                </Text>
-                <LocationPicker label="Origen" locations={locations} value={origin} onChange={setOrigin} />
-              </View>
-            )}
+            <View className="flex-row gap-3">
+              {needsOrigin && <SideCard side="origin" location={origin} active={active === "origin"} onPress={() => setActive("origin")} />}
+              {needsDest && <SideCard side="dest" location={dest} active={active === "dest"} onPress={() => setActive("dest")} />}
+            </View>
 
-            {needsDest && (
-              <View>
-                <Text className="text-xs font-semibold uppercase tracking-wide text-[#64748B] mb-2">
-                  Ubicación de destino
-                </Text>
-                <LocationPicker label="Destino" locations={locations} value={dest} onChange={setDest} />
-              </View>
-            )}
+            <View>
+              <Text className="text-xs font-semibold uppercase tracking-wide text-[#64748B] mb-2">
+                {needsOrigin && needsDest ? `Plano · eligiendo ${style.label.toLowerCase()}` : "Plano del almacén"}
+              </Text>
+              <WarehouseMap
+                locations={locations}
+                occupancy={occupancy}
+                selectedId={(active === "origin" ? origin : dest)?.id}
+                blockedId={moveType === "transfer" ? other?.id : undefined}
+                blockedLabel={active === "origin" ? "Destino" : "Origen"}
+                accent={style.accent}
+                onSelect={handleSelect}
+              />
+            </View>
 
             <Input
               label="Referencia (opcional)"
