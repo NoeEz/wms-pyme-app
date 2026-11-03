@@ -1,0 +1,116 @@
+# Roadmap — WMS PyME
+
+Plan de escalación del producto, desde el MVP actual hasta un WMS multi-empresa listo para producción.
+
+> **Origen de este documento.** Se armó a partir del estado real del código (noviembre 2026) y de las referencias que el propio código hace a la tesina (`Tesina_WMS_PyME.docx`) y al brief (`BRIEF_IA_MVP_WMS_PYME.md`). Esos dos documentos **no están en el repo**; cuando se agreguen, alinear las fases de abajo con las épicas (`EPIC-n`) y objetivos específicos (`OEn`) oficiales. Hoy solo está confirmada la correspondencia **EPIC-6 = Módulos Personalizables = OE5**.
+
+## Resumen
+
+| Fase | Nombre | Objetivo | Estado |
+|---|---|---|---|
+| 0 | MVP operativo móvil | Operar un almacén desde el teléfono contra una API real | 🟡 Casi completa |
+| 1 | Cierre del MVP | Quitar simulaciones y dejar el MVP demostrable de punta a punta | ⚪ Pendiente |
+| 2 | Operación en campo | Que funcione en un almacén real: sin señal, con cámara y lectores | ⚪ Pendiente |
+| 3 | Portal web y administración | Que el supervisor/admin gestione y monitoree sin tocar la base de datos | ⚪ Pendiente |
+| 4 | Despliegue y multi-empresa | Servir a varias PyMEs en un mismo servidor (VPS) | ⚪ Pendiente |
+| 5 | Escalación funcional | Funciones de WMS avanzado y personalización | ⚪ Futuro |
+
+---
+
+## Fase 0 — MVP operativo móvil (`v1.0.0-mvp`) 🟡
+
+Lo que ya existe en el repo.
+
+**App móvil (Expo / React Native)**
+- [x] Login con JWT y selección de almacén
+- [x] Inicio, menú "Operar" y "Más"
+- [x] Movimientos de entrada, salida y transferencia: configuración → escaneo → borrador → revisión → resultado con folio
+- [x] Captura manual de productos como respaldo del escaneo
+- [x] Inventario: búsqueda, filtros (stock bajo, serializados, por lote) y detalle por ubicación
+- [x] Historial de movimientos (supervisor/admin)
+- [x] Pantalla de módulos operativos (solo admin)
+- [x] Roles: operador, supervisor, administrador
+
+**Backend (Node.js + Express + MongoDB, en Docker)**
+- [x] Auth (`/auth/login`, `/auth/me`)
+- [x] Lectura de almacenes, productos, ubicaciones e inventario
+- [x] Creación de movimientos con reglas de negocio: cantidad > 0, stock suficiente, origen ≠ destino, serie no duplicada, ubicación del almacén correcto
+- [x] Actualización atómica de stock (transacción Mongo, replica set de un nodo) y folio consecutivo
+- [x] Seguimiento por lote / número de serie y umbral de stock bajo por producto
+- [x] **EPIC-6 / OE5 — Módulos personalizables:** catálogo fijo de 6 módulos que el admin activa o desactiva por empresa
+- [x] Siembra automática de datos demo
+
+## Fase 1 — Cierre del MVP ⚪
+
+Eliminar lo que todavía está simulado o con datos de prueba.
+
+- [ ] Pantalla **Pendientes**: dejar de usar `PENDING_SYNCS` de `src/data.ts`
+- [ ] Mover `parseQR` fuera de `src/data.ts` y definir el formato de QR oficial (versionado)
+- [ ] Indicador de conexión real (hoy se cicla a mano: online → offline → pending)
+- [ ] Persistir la sesión entre aperturas de la app
+- [ ] Preferencias de escaneo (sonido / vibración) que realmente suenen/vibren y se guarden
+- [ ] Ocultar la "Biblioteca de componentes" en builds que no sean de desarrollo
+- [ ] Eliminar `src/data.ts` cuando ya no lo use ninguna pantalla
+- [ ] Actualizar `AGENTS.md` y `backend/README.md` (dicen que solo Login y Selección de almacén usan la API, pero ya casi todo está conectado)
+- [ ] Pruebas mínimas de API para las reglas de movimientos (colección Postman o tests automatizados)
+
+**Entregable:** demo completo sin datos simulados en la app.
+
+## Fase 2 — Operación en campo ⚪
+
+Lo necesario para usarlo en un almacén real.
+
+- [ ] **Modo sin conexión real:** cola local de movimientos, reintentos, sincronización al recuperar señal y manejo de conflictos (p. ej. stock insuficiente al sincronizar)
+- [ ] Idempotencia en `POST /movements` (clave del lado del cliente) para no duplicar movimientos al reintentar
+- [ ] **Cámara real** con `expo-camera` (ya instalado y con permisos en `app.json`)
+- [ ] Soporte de lectores de mano (escáneres que funcionan como teclado) y de terminales Android industriales
+- [ ] Fuentes personalizadas y animaciones que se perdieron al migrar de web a nativo (opcional)
+- [ ] Build instalable (EAS Build) en lugar de solo Expo Go
+
+**Entregable:** app instalable que funciona sin señal y escanea con cámara o lector.
+
+## Fase 3 — Portal web y administración ⚪
+
+Hoy el catálogo solo se crea con el script de siembra; no hay altas, cambios ni bajas.
+
+- [ ] **Portal web de monitoreo** (mencionado en la tesina): tablero de existencias, movimientos del día y alertas de stock bajo
+- [ ] Gestión de catálogo desde el portal (y endpoints en la API): productos, almacenes, ubicaciones (zona/pasillo/rack/posición)
+- [ ] Gestión de usuarios y roles por empresa
+- [ ] Reportes exportables (Excel/PDF): kardex por producto, movimientos por periodo, existencias por ubicación
+- [ ] Bitácora de auditoría (quién cambió qué y cuándo)
+- [ ] Generación e impresión de etiquetas QR para productos y ubicaciones
+
+**Entregable:** una PyME puede arrancar desde cero sin intervención técnica.
+
+## Fase 4 — Despliegue y multi-empresa ⚪
+
+- [ ] **Despliegue en VPS** (mencionado en la tesina): Docker Compose de producción, HTTPS, dominio, variables de entorno seguras
+- [ ] Respaldos automáticos de MongoDB y su restauración probada
+- [ ] Aislamiento entre empresas revisado en todas las rutas (`companyId` ya existe en el token y los modelos)
+- [ ] Alta de nuevas empresas (onboarding) y su usuario administrador inicial
+- [ ] Endurecimiento de seguridad: límite de intentos de login, expiración/renovación de token, recuperación de contraseña
+- [ ] Monitoreo de la API (salud, errores, tiempos de respuesta) y logs centralizados
+- [ ] CI: lint, typecheck, pruebas y build en cada cambio
+
+**Entregable:** varias PyMEs usando el sistema en producción.
+
+## Fase 5 — Escalación funcional ⚪
+
+Ideas para crecer el producto una vez estable. Priorizar según lo que pidan los clientes.
+
+- [ ] **Módulos definidos por el administrador** (el catálogo de EPIC-6 hoy es fijo "porque el MVP solo necesita un conjunto cerrado")
+- [ ] Planes por suscripción ligados a los módulos (p. ej. básico: entradas/salidas; pro: transferencias, cámara, historial, reportes)
+- [ ] Conteos cíclicos e inventario físico con ajustes
+- [ ] Órdenes de compra y de venta: recibir y surtir contra un documento (picking / packing)
+- [ ] Caducidades y FEFO/FIFO por lote
+- [ ] Reabastecimiento sugerido a partir del stock mínimo
+- [ ] Integraciones: ERP / contabilidad, e-commerce, facturación (CFDI)
+- [ ] Notificaciones push (stock bajo, sincronización fallida)
+
+---
+
+## Cómo mantener este documento
+
+- Marcar `[x]` al terminar cada punto y mover la fase a 🟡 / 🟢 según avance.
+- Al subir la versión de la app (`MoreScreen.tsx` muestra `v1.0.0-mvp`), anotar aquí qué fase cierra.
+- Cuando se integre la tesina al repo, agregar junto a cada punto su `EPIC-n` / `OEn` correspondiente.

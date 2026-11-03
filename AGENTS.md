@@ -4,6 +4,8 @@ React Native + Expo project (Expo Go / managed workflow). Originally scaffolded 
 
 This is the mobile client for the "WMS-PyME" thesis project (`Tesina_WMS_PyME.docx`), a bigger multi-part system (mobile + web portal + Node.js/MongoDB backend). A real backend now lives in `backend/` (see `backend/README.md`) — Login and Selección de almacén call it for real (`src/services/api.ts`, `src/services/auth.ts`, `src/services/warehouses.ts`); every other screen still reads mock data from `src/data.ts`, pending further integration work. Don't assume the whole app is backend-connected just because these two screens are.
 
+Product phases (MVP → field operation → web portal → VPS/multi-company → advanced features) are tracked in `ROADMAP.md`.
+
 ## Running the app
 
 There is no dev server auto-started in this environment. To preview the app, run, on a machine with `npm` and network access to the phone:
