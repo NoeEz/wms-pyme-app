@@ -1,4 +1,4 @@
-import { api } from "./api";
+import { cachedGet } from "./api";
 import type { Location } from "../types";
 
 interface ApiLocation {
@@ -16,6 +16,6 @@ function mapLocation(l: ApiLocation): Location {
 }
 
 export async function fetchLocations(token: string, warehouseId: string): Promise<Location[]> {
-  const data = await api.get<{ locations: ApiLocation[] }>(`/inventory/locations?warehouseId=${warehouseId}`, token);
+  const data = await cachedGet<{ locations: ApiLocation[] }>(`/inventory/locations?warehouseId=${warehouseId}`, token);
   return data.locations.map(mapLocation);
 }

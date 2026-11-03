@@ -1,50 +1,54 @@
-import React, { useState, useEffect } from "react";
+import React from "react";
 import { View, Text, ActivityIndicator } from "react-native";
 import { Button, Icon, Badge } from "../components/ui";
-import type { MoveType, MovementItem, ConnectionStatus } from "../types";
+import type { MoveType, MovementItem, MoveOutcome } from "../types";
+import { useQueuedMovement, retry } from "../services/syncQueue";
 
 interface Props {
+  token: string;
   moveType: MoveType;
   items: MovementItem[];
-  connection: ConnectionStatus;
-  folio?: string;
+  outcome: MoveOutcome;
   onNewMovement: () => void;
   onViewDetail: () => void;
 }
 
-export default function MovementResultScreen({ moveType, items, connection, folio: realFolio, onNewMovement, onViewDetail }: Props) {
-  // Online: the movement was already confirmed for real before reaching this
-  // screen, so it's synced from the start. Offline/pending stays a local
-  // simulation — real offline queueing isn't implemented yet (see backend/README.md).
-  const [syncState, setSyncState] = useState<'saving' | 'saved' | 'syncing' | 'synced' | 'error'>(
-    connection === 'online' ? 'synced' : 'saved'
-  );
+export default function MovementResultScreen({ token, moveType, items, outcome, onNewMovement, onViewDetail }: Props) {
+  // A queued movement keeps updating live while the offline queue syncs it.
+  const queued = useQueuedMovement(outcome.kind === 'queued' ? outcome.id : undefined);
+  const syncState: 'saved' | 'syncing' | 'synced' | 'error' =
+    outcome.kind === 'synced' ? 'synced' :
+    queued?.status === 'synced' ? 'synced' :
+    queued?.status === 'syncing' ? 'syncing' :
+    queued?.status === 'error' ? 'error' : 'saved';
+  const folio = outcome.kind === 'synced' ? outcome.folio : queued?.folio;
 
   const totalUnits = items.reduce((s, i) => s + (i.product.serialized ? i.serials.length : i.quantity), 0);
   const moveLabel = { entry: 'Entrada', exit: 'Salida', transfer: 'Transferencia' }[moveType];
-  const now = new Date();
-  const folio = realFolio || `${moveType === 'entry' ? 'ENT' : moveType === 'exit' ? 'SAL' : 'TRA'}-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}-${String(Math.floor(Math.random() * 100)).padStart(4, '0')}`;
-  const nowLabel = now.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
-
-  useEffect(() => {
-    if (connection === 'online') return;
-    // Simulate sync recovery
-    const t1 = setTimeout(() => setSyncState('syncing'), 2500);
-    const t2 = setTimeout(() => setSyncState('synced'), 4000);
-    return () => { clearTimeout(t1); clearTimeout(t2); };
-  }, [connection]);
+  const capturedAt = queued ? new Date(queued.createdAt) : new Date();
+  const timeLabel = capturedAt.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
 
   return (
     <View className="flex-1 bg-[#F8FAFC]">
       <View className="flex-1 items-center justify-start px-4 py-8 gap-5">
-        {/* Success icon */}
-        <View className="w-20 h-20 bg-[#D1FAE5] rounded-full items-center justify-center">
-          <Icon name="check" size={36} color="#059669" />
+        {/* Result icon */}
+        <View className={`w-20 h-20 rounded-full items-center justify-center ${syncState === 'error' ? 'bg-[#FEE2E2]' : syncState === 'synced' ? 'bg-[#D1FAE5]' : 'bg-[#FEF3C7]'}`}>
+          <Icon
+            name={syncState === 'error' ? 'warning' : syncState === 'synced' ? 'check' : 'clock'}
+            size={36}
+            color={syncState === 'error' ? '#DC2626' : syncState === 'synced' ? '#059669' : '#B45309'}
+          />
         </View>
 
         <View className="items-center">
-          <Text className="text-xl font-bold text-[#0F172A] mb-1">{moveLabel} registrada</Text>
-          <Text className="text-sm text-[#64748B]">El movimiento se registró correctamente</Text>
+          <Text className="text-xl font-bold text-[#0F172A] mb-1">
+            {syncState === 'error' ? `${moveLabel} rechazada` : syncState === 'synced' ? `${moveLabel} registrada` : `${moveLabel} guardada`}
+          </Text>
+          <Text className="text-sm text-[#64748B] text-center">
+            {syncState === 'error' ? 'El servidor no aceptó el movimiento al sincronizar' :
+             syncState === 'synced' ? 'El movimiento se registró correctamente' :
+             'Se guardó en este dispositivo y se enviará al recuperar conexión'}
+          </Text>
         </View>
 
         {/* Folio card */}
@@ -55,8 +59,12 @@ export default function MovementResultScreen({ moveType, items, connection, foli
               {moveLabel}
             </Badge>
           </View>
-          <Text className="text-lg font-bold font-mono text-[#4F46E5] mb-1">{folio}</Text>
-          <Text className="text-xs text-[#94A3B8]">{nowLabel} · hoy</Text>
+          {folio ? (
+            <Text className="text-lg font-bold font-mono text-[#4F46E5] mb-1">{folio}</Text>
+          ) : (
+            <Text className="text-sm font-medium text-[#94A3B8] mb-1">Se asignará al sincronizar</Text>
+          )}
+          <Text className="text-xs text-[#94A3B8]">{timeLabel} · hoy</Text>
 
           <View className="mt-3 pt-3 border-t border-[#F1F5F9] flex-row gap-4">
             <View>
@@ -85,7 +93,7 @@ export default function MovementResultScreen({ moveType, items, connection, foli
           ) : (
             <Icon name="clock" size={18} color="#B45309" />
           )}
-          <View>
+          <View className="flex-1">
             <Text className={`text-sm font-semibold
               ${syncState === 'synced' ? 'text-[#065F46]' :
                 syncState === 'error' ? 'text-[#7F1D1D]' :
@@ -99,18 +107,16 @@ export default function MovementResultScreen({ moveType, items, connection, foli
             {syncState === 'saved' && (
               <Text className="text-xs text-[#92400E]">Se sincronizará cuando recuperes conexión</Text>
             )}
+            {syncState === 'error' && queued?.lastError && (
+              <Text className="text-xs text-[#7F1D1D]">{queued.lastError}</Text>
+            )}
           </View>
         </View>
 
-        {syncState === 'error' && (
-          <View className="w-full flex-row gap-2">
-            <Button variant="primary" fullWidth onClick={() => setSyncState('syncing')}>
-              Reintentar
-            </Button>
-            <Button variant="secondary" fullWidth onClick={() => setSyncState('saved')}>
-              Guardar como pendiente
-            </Button>
-          </View>
+        {syncState === 'error' && queued && (
+          <Button variant="primary" fullWidth onClick={() => retry(token, queued.id)}>
+            Reintentar
+          </Button>
         )}
       </View>
 
@@ -120,7 +126,7 @@ export default function MovementResultScreen({ moveType, items, connection, foli
           Nuevo movimiento
         </Button>
         <Button fullWidth variant="ghost" onClick={onViewDetail}>
-          Ver detalle
+          {outcome.kind === 'queued' ? 'Ver pendientes' : 'Ver historial'}
         </Button>
       </View>
     </View>

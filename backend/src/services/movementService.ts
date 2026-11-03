@@ -24,14 +24,44 @@ export interface CreateMovementInput {
   type: MovementType;
   reference?: string;
   lines: CreateMovementLineInput[];
+  clientId?: string;
+  capturedAt?: Date;
 }
 
 function bad(code: string, message: string): never {
   throw new HttpError(422, code, message);
 }
 
+function isDuplicateKeyError(err: unknown): boolean {
+  return typeof err === "object" && err !== null && (err as { code?: number }).code === 11000;
+}
+
 export async function createMovement(input: CreateMovementInput) {
-  const { companyId, warehouseId, userId, type, reference, lines } = input;
+  const { companyId, clientId } = input;
+
+  // Idempotent replay: the device already sent this movement (e.g. the
+  // response was lost on a flaky connection). Return it as-is, before any
+  // validation — re-validating would fail on its own serials/stock changes.
+  if (clientId) {
+    const existing = await Movement.findOne({ companyId, clientId });
+    if (existing) return { movement: existing, replayed: true };
+  }
+
+  try {
+    return { movement: await applyMovement(input), replayed: false };
+  } catch (err) {
+    // Two concurrent retries with the same clientId: the unique index lets
+    // only one transaction commit; the loser returns the winner's movement.
+    if (clientId && isDuplicateKeyError(err)) {
+      const existing = await Movement.findOne({ companyId, clientId });
+      if (existing) return { movement: existing, replayed: true };
+    }
+    throw err;
+  }
+}
+
+async function applyMovement(input: CreateMovementInput) {
+  const { companyId, warehouseId, userId, type, reference, lines, clientId, capturedAt } = input;
 
   const company = await Company.findById(companyId);
   const enabledModules = new Set(company?.enabledModules ?? ALL_MODULE_KEYS);
@@ -116,6 +146,9 @@ export async function createMovement(input: CreateMovementInput) {
           warehouseId: new Types.ObjectId(warehouseId),
           userId: new Types.ObjectId(userId),
           reference,
+          clientId,
+          capturedAt,
+          syncedAt: new Date(),
           lines: lines.map(l => ({
             productId: new Types.ObjectId(l.productId),
             quantity: l.quantity,

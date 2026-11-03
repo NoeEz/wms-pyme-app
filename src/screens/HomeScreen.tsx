@@ -1,10 +1,12 @@
-import React from "react";
-import { View, Text, Pressable } from "react-native";
+import React, { useEffect, useState } from "react";
+import { View, Text, Pressable, ActivityIndicator } from "react-native";
 import { Icon, Card, Badge } from "../components/ui";
-import type { User, Warehouse, ConnectionStatus, Screen, ModuleInfo } from "../types";
+import type { User, Warehouse, ConnectionStatus, Screen, ModuleInfo, MovementSummary } from "../types";
 import { isModuleEnabled } from "../services/modules";
+import { fetchMovements } from "../services/movements";
 
 interface Props {
+  token: string;
   user: User;
   warehouse: Warehouse;
   connection: ConnectionStatus;
@@ -19,9 +21,41 @@ const ACTION_BTNS = [
   { id: 'transfer', module: 'transfer', label: 'Transferencia', icon: 'transfer', color: 'bg-[#B45309]', desc: 'Mover entre zonas' },
 ];
 
-export default function HomeScreen({ user, warehouse, connection, modules, onNavigate, pendingCount }: Props) {
+function greeting(date: Date) {
+  const h = date.getHours();
+  return h < 12 ? 'Buenos días,' : h < 19 ? 'Buenas tardes,' : 'Buenas noches,';
+}
+
+function timeAgo(iso: string) {
+  const min = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 60_000));
+  if (min < 1) return 'hace un momento';
+  if (min < 60) return `hace ${min} min`;
+  return `hace ${Math.floor(min / 60)} h`;
+}
+
+const TYPE_LABELS = { entry: 'Entrada', exit: 'Salida', transfer: 'Transferencia' };
+
+export default function HomeScreen({ token, user, warehouse, connection, modules, onNavigate, pendingCount }: Props) {
   const roleLabel = { operator: 'Operador', supervisor: 'Supervisor', admin: 'Administrador' }[user.role];
   const inventoryEnabled = isModuleEnabled(modules, 'inventory');
+
+  // Shift summary: today's server-confirmed movements in this warehouse.
+  const [today, setToday] = useState<MovementSummary[] | null>(null);
+  const [summaryError, setSummaryError] = useState(false);
+  const offline = connection === 'offline';
+
+  useEffect(() => {
+    if (offline) return;
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    setSummaryError(false);
+    fetchMovements(token, warehouse.id)
+      .then(list => setToday(list.filter(m => Date.parse(m.createdAt) >= startOfDay.getTime())))
+      .catch(() => setSummaryError(true));
+  }, [token, warehouse.id, offline, pendingCount]);
+
+  const countOf = (type: MovementSummary['type']) => today?.filter(m => m.type === type).length ?? 0;
+  const last = today?.[0];
 
   return (
     <View className="flex-1 bg-[#F8FAFC]">
@@ -29,7 +63,7 @@ export default function HomeScreen({ user, warehouse, connection, modules, onNav
         {/* Greeting */}
         <View className="flex-row items-center justify-between">
           <View>
-            <Text className="text-[#64748B] text-xs">Buenos días,</Text>
+            <Text className="text-[#64748B] text-xs">{greeting(new Date())}</Text>
             <Text className="text-[#0F172A] text-lg font-semibold">{user.name}</Text>
           </View>
           <Badge variant="info">{roleLabel}</Badge>
@@ -116,21 +150,32 @@ export default function HomeScreen({ user, warehouse, connection, modules, onNav
           <View className="px-4 py-3 border-b border-[#F1F5F9]">
             <Text className="text-xs font-semibold uppercase tracking-wide text-[#64748B]">Resumen del turno</Text>
           </View>
-          <View className="flex-row flex-wrap">
-            {[
-              { label: 'Entradas', value: '4', color: 'text-[#4F46E5]' },
-              { label: 'Salidas', value: '2', color: 'text-[#059669]' },
-              { label: 'Traslados', value: '1', color: 'text-[#B45309]' },
-            ].map((item, i) => (
-              <View key={item.label} className={`flex-1 flex-col items-center py-3 ${i > 0 ? 'border-l border-[#F1F5F9]' : ''}`}>
-                <Text className={`text-xl font-bold ${item.color}`}>{item.value}</Text>
-                <Text className="text-[10px] text-[#64748B]">{item.label}</Text>
-              </View>
-            ))}
-          </View>
+          {today === null && !summaryError && !offline ? (
+            <View className="py-5 items-center">
+              <ActivityIndicator size="small" color="#4F46E5" />
+            </View>
+          ) : (
+            <View className="flex-row flex-wrap">
+              {[
+                { label: 'Entradas', value: countOf('entry'), color: 'text-[#4F46E5]' },
+                { label: 'Salidas', value: countOf('exit'), color: 'text-[#059669]' },
+                { label: 'Traslados', value: countOf('transfer'), color: 'text-[#B45309]' },
+              ].map((item, i) => (
+                <View key={item.label} className={`flex-1 flex-col items-center py-3 ${i > 0 ? 'border-l border-[#F1F5F9]' : ''}`}>
+                  <Text className={`text-xl font-bold ${item.color}`}>{today ? item.value : '—'}</Text>
+                  <Text className="text-[10px] text-[#64748B]">{item.label}</Text>
+                </View>
+              ))}
+            </View>
+          )}
           <View className="px-4 py-2.5 bg-[#F8FAFC] border-t border-[#F1F5F9] flex-row items-center gap-2">
             <Icon name="clock" size={13} color="#94A3B8" />
-            <Text className="text-xs text-[#64748B]">Último: Entrada ENT-0041 · hace 18 min</Text>
+            <Text className="text-xs text-[#64748B]">
+              {offline && !today ? 'Sin conexión — resumen no disponible' :
+               summaryError ? 'No se pudo cargar el resumen' :
+               last ? `Último: ${TYPE_LABELS[last.type]} ${last.folio ?? ''} · ${timeAgo(last.createdAt)}` :
+               today ? 'Sin movimientos hoy' : 'Cargando...'}
+            </Text>
           </View>
         </Card>
 

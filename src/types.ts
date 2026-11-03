@@ -1,7 +1,7 @@
 export type Role = 'operator' | 'supervisor' | 'admin';
 export type ConnectionStatus = 'online' | 'offline' | 'pending';
 export type MoveType = 'entry' | 'exit' | 'transfer';
-export type ScanState = 'idle' | 'receiving' | 'processing' | 'added' | 'duplicate' | 'invalid_format' | 'not_found';
+export type ScanState = 'idle' | 'receiving' | 'processing' | 'added' | 'duplicate' | 'invalid_format' | 'not_found' | 'needs_serial';
 
 export interface User {
   id?: string;
@@ -50,6 +50,7 @@ export interface ModuleInfo {
 export interface MovementSummary {
   id: string;
   folio?: string;
+  createdAt: string;
   type: MoveType;
   status: 'draft' | 'local_pending' | 'syncing' | 'completed' | 'failed';
   date: string;
@@ -78,26 +79,8 @@ export interface MovementItem {
   scannedAt: Date;
 }
 
-export interface PendingSync {
-  id: string;
-  type: MoveType;
-  status: 'pending' | 'syncing' | 'error' | 'synced';
-  createdAt: string;
-  itemCount: number;
-  reference?: string;
-}
-
-export interface HistoryMovement {
-  folio: string;
-  type: MoveType;
-  status: 'confirmed' | 'pending' | 'error';
-  date: string;
-  user: string;
-  origin?: string;
-  destination?: string;
-  items: MovementItem[];
-  reference?: string;
-}
+/** How the last confirmed movement ended: applied on the server, or saved in the offline queue. */
+export type MoveOutcome = { kind: 'synced'; folio: string } | { kind: 'queued'; id: string };
 
 export type Screen =
   | 'login'

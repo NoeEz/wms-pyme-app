@@ -2,9 +2,10 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import { View, Text, Pressable, TextInput, ActivityIndicator } from "react-native";
 import { Button, Icon, Toast } from "../components/ui";
 import type { MoveType, MovementItem, ScanState, ModuleInfo } from "../types";
-import { parseQR } from "../data";
-import { findProductByCode } from "../services/products";
 import { isModuleEnabled } from "../services/modules";
+import { useScanProcessor } from "../services/scanning";
+import { usePreferences } from "../services/preferences";
+import { WMS_QR_PREFIX } from "../services/scanCodes";
 
 interface Props {
   token: string;
@@ -25,9 +26,9 @@ export default function ScanHandheldScreen({ token, moveType, items, modules, on
   const [scanState, setScanState] = useState<ScanState>('idle');
   const [lastRead, setLastRead] = useState<LastRead | null>(null);
   const [toast, setToast] = useState({ visible: false, message: '', type: 'success' as 'success' | 'error' | 'warning' });
-  const [lastRawCodes] = useState<Set<string>>(new Set());
-  const inputRef = useRef<TextInput>(null);
-  const processingRef = useRef(false);
+  const inputRef = useRef<React.ComponentRef<typeof TextInput>>(null);
+  const { hardwareScanner } = usePreferences();
+  const { process } = useScanProcessor({ token, items, onAddItem });
 
   const totalUnits = items.reduce((s, i) => s + (i.product.serialized ? i.serials.length : i.quantity), 0);
   const distinctProducts = new Set(items.map(i => i.product.id)).size;
@@ -38,87 +39,34 @@ export default function ScanHandheldScreen({ token, moveType, items, modules, on
   }, []);
 
   const processCode = useCallback(async (raw: string) => {
-    if (processingRef.current || !raw.trim()) return;
-    processingRef.current = true;
+    if (!raw.trim()) return;
     setScanState('processing');
+    const outcome = await process(raw);
+    if (!outcome) return; // a previous read is still in flight
 
-    const { valid, data, error } = parseQR(raw.trim());
-
-    if (!valid || !data) {
-      setScanState('invalid_format');
-      setLastRead({ product: 'Código no reconocido', sku: raw.slice(0, 20), qty: 0, state: 'invalid_format' });
-      showToast(error ?? 'Formato no reconocido', 'error');
-      processingRef.current = false;
-      return;
-    }
-
-    let product;
-    try {
-      product = await findProductByCode(token, data.sku ?? data.productId ?? '');
-    } catch {
-      setScanState('not_found');
-      setLastRead({ product: 'No se pudo consultar el producto', sku: data.sku ?? '', qty: 0, state: 'not_found' });
-      showToast('Sin conexión con el servidor', 'error');
-      processingRef.current = false;
-      return;
-    }
-
-    if (!product) {
-      setScanState('not_found');
-      setLastRead({ product: 'Producto no encontrado', sku: data.sku ?? '', qty: 0, state: 'not_found' });
-      showToast('Producto no encontrado en el sistema', 'error');
-      processingRef.current = false;
-      return;
-    }
-
-    // Serialized duplicate check
-    if (product.serialized && data.serial) {
-      const existingItem = items.find(i => i.product.id === product.id);
-      if (existingItem?.serials.includes(data.serial)) {
-        setScanState('duplicate');
-        setLastRead({ product: product.name, sku: product.sku, serial: data.serial, qty: 0, state: 'duplicate' });
-        showToast(`Serie ${data.serial} ya fue registrada`, 'warning');
-        processingRef.current = false;
-        return;
-      }
-    }
-
-    // Check duplicate raw scan
-    if (lastRawCodes.has(raw.trim())) {
-      setScanState('duplicate');
-      setLastRead({ product: product.name, sku: product.sku, qty: 0, state: 'duplicate' });
-      showToast('Lectura duplicada detectada', 'warning');
-      processingRef.current = false;
-      return;
-    }
-
-    lastRawCodes.add(raw.trim());
-
-    const newItem: MovementItem = {
-      id: `item_${Date.now()}`,
-      product,
-      lot: data.lot,
-      serials: data.serial ? [data.serial] : [],
-      quantity: 1,
-      scannedAt: new Date(),
-    };
-
-    onAddItem(newItem);
-    setScanState('added');
+    setScanState(outcome.state);
     setLastRead({
-      product: product.name,
-      sku: product.sku,
-      lot: data.lot,
-      serial: data.serial,
-      qty: 1,
-      state: 'added',
+      product: outcome.product?.name ?? (outcome.state === 'invalid_format' ? 'Código no reconocido' : 'Producto no encontrado'),
+      sku: outcome.product?.sku ?? raw.trim().slice(0, 24),
+      lot: outcome.lot,
+      serial: outcome.serial,
+      qty: outcome.state === 'added' ? 1 : 0,
+      state: outcome.state,
     });
-    showToast(`${product.name} agregado`, 'success');
-    processingRef.current = false;
+    showToast(outcome.message, outcome.state === 'added' ? 'success' : outcome.state === 'duplicate' || outcome.state === 'needs_serial' ? 'warning' : 'error');
+    // Keep the field focused so the next trigger pull of a handheld reader lands here.
     inputRef.current?.focus();
-  }, [items, onAddItem, showToast, lastRawCodes, token]);
+  }, [process, showToast]);
 
+  // Handheld readers act as a keyboard: they "type" the code in a burst and
+  // usually end with Enter (→ onSubmitEditing). Some send Tab/newline as a
+  // terminator instead, which lands in the text — treat that as submit too.
   function handleChangeText(text: string) {
+    if (/[\r\n\t]/.test(text)) {
+      processCode(text);
+      setCode('');
+      return;
+    }
     setCode(text);
     setScanState(text ? 'receiving' : 'idle');
   }
@@ -128,18 +76,18 @@ export default function ScanHandheldScreen({ token, moveType, items, modules, on
     setCode('');
   }
 
-  // Auto-process if the code looks complete (has pipe delimiters) after brief pause
+  // Readers configured with no terminator: process once the burst stops.
+  // WMS labels are recognizable mid-typing; for plain barcodes this only
+  // kicks in with "Lector integrado" on, so hand-typed codes aren't cut short.
   useEffect(() => {
-    if (!code.includes('|')) return;
-    const parts = code.split('|');
-    if (parts.length >= 3 && code.startsWith('WMSPYME')) {
-      const t = setTimeout(() => {
-        processCode(code);
-        setCode('');
-      }, 120);
-      return () => clearTimeout(t);
-    }
-  }, [code, processCode]);
+    const isWmsLabel = code.toUpperCase().startsWith(`${WMS_QR_PREFIX}|`) && code.split('|').length >= 3;
+    if (!isWmsLabel && !(hardwareScanner && code.length >= 4)) return;
+    const t = setTimeout(() => {
+      processCode(code);
+      setCode('');
+    }, isWmsLabel ? 120 : 250);
+    return () => clearTimeout(t);
+  }, [code, processCode, hardwareScanner]);
 
   const stateColors: Record<ScanState, string> = {
     idle: 'bg-[#F1F5F9] border-[#CBD5E1]',
@@ -149,6 +97,7 @@ export default function ScanHandheldScreen({ token, moveType, items, modules, on
     duplicate: 'bg-[#FEF3C7] border-[#B45309]',
     invalid_format: 'bg-[#FEE2E2] border-[#DC2626]',
     not_found: 'bg-[#FEE2E2] border-[#DC2626]',
+    needs_serial: 'bg-[#FEF3C7] border-[#B45309]',
   };
 
   const moveLabel = { entry: 'Entrada', exit: 'Salida', transfer: 'Transferencia' }[moveType];
@@ -182,6 +131,10 @@ export default function ScanHandheldScreen({ token, moveType, items, modules, on
             value={code}
             onChangeText={handleChangeText}
             onSubmitEditing={handleSubmitEditing}
+            submitBehavior="submit"
+            showSoftInputOnFocus={!hardwareScanner}
+            autoCapitalize="none"
+            autoCorrect={false}
             placeholder="El lector escribirá aquí automáticamente..."
             placeholderTextColor="#94A3B8"
             className="w-full bg-white border border-[#CBD5E1] rounded-[10px] px-4 py-3 text-sm font-mono text-[#0F172A]"
@@ -202,11 +155,11 @@ export default function ScanHandheldScreen({ token, moveType, items, modules, on
           <View className="mt-3 flex-row items-center gap-2">
             {scanState === 'added' && <Icon name="check" size={16} color="#059669" />}
             {(scanState === 'invalid_format' || scanState === 'not_found') && <Icon name="x" size={16} color="#DC2626" />}
-            {scanState === 'duplicate' && <Icon name="warning" size={16} color="#B45309" />}
+            {(scanState === 'duplicate' || scanState === 'needs_serial') && <Icon name="warning" size={16} color="#B45309" />}
             {scanState === 'processing' && <ActivityIndicator size="small" color="#B45309" />}
             <Text className={`text-xs font-medium ${
               scanState === 'added' ? 'text-[#059669]' :
-              scanState === 'duplicate' ? 'text-[#B45309]' :
+              (scanState === 'duplicate' || scanState === 'needs_serial') ? 'text-[#B45309]' :
               (scanState === 'invalid_format' || scanState === 'not_found') ? 'text-[#DC2626]' :
               'text-[#64748B]'
             }`}>
@@ -217,6 +170,7 @@ export default function ScanHandheldScreen({ token, moveType, items, modules, on
               {scanState === 'duplicate' && 'Lectura duplicada — no se agregó'}
               {scanState === 'invalid_format' && 'Formato no reconocido'}
               {scanState === 'not_found' && 'Producto no encontrado'}
+              {scanState === 'needs_serial' && 'Falta número de serie — no se agregó'}
             </Text>
           </View>
         </View>
@@ -269,13 +223,13 @@ export default function ScanHandheldScreen({ token, moveType, items, modules, on
         )}
 
         {/* Error actions */}
-        {(scanState === 'invalid_format' || scanState === 'not_found') && (
+        {(scanState === 'invalid_format' || scanState === 'not_found' || scanState === 'needs_serial') && (
           <View className="mx-4 mt-3 bg-[#FEF3C7] border border-[#FDE68A] rounded-[12px] p-4">
             <Text className="text-sm font-semibold text-[#78350F] mb-1">¿Qué deseas hacer?</Text>
             <Text className="text-xs text-[#92400E] mb-3">
-              {scanState === 'invalid_format'
-                ? 'El código no tiene el formato esperado de WMS PyME.'
-                : 'El producto no está registrado en el sistema.'}
+              {scanState === 'invalid_format' ? 'El código no tiene el formato esperado de WMS PyME.' :
+               scanState === 'needs_serial' ? 'Este producto se controla por número de serie; su código de barras no lo incluye.' :
+               'El producto no está registrado en el sistema.'}
             </Text>
             <View className="flex-row gap-2">
               <Pressable

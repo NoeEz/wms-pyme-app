@@ -13,13 +13,23 @@ const TYPE_FROM_BACKEND: Record<"inbound" | "outbound" | "transfer", MoveType> =
   transfer: "transfer",
 };
 
-interface CreateMovementParams {
+export interface CreateMovementParams {
   warehouseId: string;
   type: MoveType;
   reference?: string;
   origin?: Location;
   destination?: Location;
   items: MovementItem[];
+}
+
+/** Exactly what POST /movements receives — also what the offline queue persists. */
+export interface MovementPayload {
+  clientId: string;
+  capturedAt: string;
+  warehouseId: string;
+  type: "inbound" | "outbound" | "transfer";
+  reference?: string;
+  lines: Record<string, unknown>[];
 }
 
 interface ApiMovement {
@@ -29,7 +39,7 @@ interface ApiMovement {
   status: "draft" | "local_pending" | "syncing" | "completed" | "failed";
 }
 
-export async function createMovement(token: string, params: CreateMovementParams): Promise<{ folio: string }> {
+export function buildMovementPayload(params: CreateMovementParams, clientId: string, capturedAt = new Date()): MovementPayload {
   const lines: Record<string, unknown>[] = [];
   for (const item of params.items) {
     const base = {
@@ -45,14 +55,20 @@ export async function createMovement(token: string, params: CreateMovementParams
     }
   }
 
-  const { movement } = await api.post<{ movement: ApiMovement }>("/movements", {
+  return {
+    clientId,
+    capturedAt: capturedAt.toISOString(),
     warehouseId: params.warehouseId,
     type: TYPE_TO_BACKEND[params.type],
     reference: params.reference,
     lines,
-  }, token);
+  };
+}
 
-  return { folio: movement.folio ?? "" };
+/** Idempotent on `payload.clientId`: resending an already-applied movement returns the original folio. */
+export async function postMovement(token: string, payload: MovementPayload): Promise<{ folio: string; replayed: boolean }> {
+  const { movement, replayed } = await api.post<{ movement: ApiMovement; replayed?: boolean }>("/movements", payload, token);
+  return { folio: movement.folio ?? "", replayed: !!replayed };
 }
 
 interface ApiUser { name: string }
@@ -75,6 +91,7 @@ function mapMovement(m: ApiMovementListItem): MovementSummary {
   return {
     id: m._id,
     folio: m.folio,
+    createdAt: m.createdAt,
     type: TYPE_FROM_BACKEND[m.type],
     status: m.status,
     date: new Date(m.createdAt).toLocaleString("es-MX", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }),

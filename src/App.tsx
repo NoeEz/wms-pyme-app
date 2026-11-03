@@ -1,10 +1,16 @@
-import React, { useEffect, useState } from "react";
-import { View } from "react-native";
+import React, { useCallback, useEffect, useState } from "react";
+import { View, ActivityIndicator } from "react-native";
 import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
-import { clearStoredToken } from "./services/auth";
-import { createMovement } from "./services/movements";
+import * as Crypto from "expo-crypto";
+import { clearStoredToken, restoreSession, rememberWarehouse } from "./services/auth";
+import { buildMovementPayload, postMovement, type MovementPayload } from "./services/movements";
 import { fetchModules } from "./services/modules";
+import { ApiError, isTransientError, setUnauthorizedHandler, clearCache } from "./services/api";
+import { warmOfflineCache } from "./services/products";
+import { useServerReachable, refreshConnectivity } from "./services/connectivity";
+import { loadPreferences } from "./services/preferences";
+import { loadQueue, enqueue, useSyncQueue, useAutoSync, countUnsynced } from "./services/syncQueue";
 import AppShell from "./components/AppShell";
 import LoginScreen from "./screens/LoginScreen";
 import WarehouseSelectScreen from "./screens/WarehouseSelectScreen";
@@ -25,17 +31,25 @@ import MoreScreen from "./screens/MoreScreen";
 import ModulesScreen from "./screens/ModulesScreen";
 import ComponentsScreen from "./screens/ComponentsScreen";
 
-import type { User, Warehouse, Screen, MoveType, MovementItem, Location, ConnectionStatus, Product, ModuleInfo } from "./types";
+import type { User, Warehouse, Screen, MoveType, MovementItem, Location, ConnectionStatus, Product, ModuleInfo, MoveOutcome } from "./types";
 
 function AppInner() {
   const insets = useSafeAreaInsets();
+  const [booting, setBooting] = useState(true);
   const [screen, setScreen] = useState<Screen>("login");
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [warehouse, setWarehouse] = useState<Warehouse | null>(null);
   const [lastWarehouseId, setLastWarehouseId] = useState<string | undefined>();
-  const [connection, setConnection] = useState<ConnectionStatus>("online");
   const [modules, setModules] = useState<ModuleInfo[]>([]);
+
+  // Connectivity + offline queue (Fase 2). "Online" means the backend answers.
+  const reachable = useServerReachable();
+  const queue = useSyncQueue(user?.id);
+  const unsyncedCount = countUnsynced(queue);
+  useAutoSync(token, user?.id, reachable);
+  const connection: ConnectionStatus =
+    reachable === false ? "offline" : unsyncedCount > 0 ? "pending" : "online";
 
   // Movement state
   const [moveType, setMoveType] = useState<MoveType>("entry");
@@ -46,13 +60,58 @@ function AppInner() {
 
   // Inventory detail
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [lastFolio, setLastFolio] = useState<string | undefined>();
+  const [moveOutcome, setMoveOutcome] = useState<MoveOutcome | null>(null);
 
-  // EPIC-6 "Módulos Personalizables" — load once we have a session.
+  // Restore persisted state once: preferences, offline queue and the last
+  // session (so a restart — often offline — doesn't force a new login).
+  useEffect(() => {
+    (async () => {
+      await Promise.all([loadPreferences(), loadQueue()]);
+      const session = await restoreSession().catch(() => null);
+      if (session) {
+        setUser(session.user);
+        setToken(session.token);
+        if (session.warehouse) {
+          setWarehouse(session.warehouse);
+          setLastWarehouseId(session.warehouse.id);
+          setScreen("home");
+        } else {
+          setScreen("warehouse-select");
+        }
+      }
+      setBooting(false);
+    })();
+  }, []);
+
+  const handleLogout = useCallback(() => {
+    clearStoredToken();
+    clearCache().catch(() => {});
+    setUser(null);
+    setToken(null);
+    setWarehouse(null);
+    setScreen("login");
+  }, []);
+
+  // Expired/invalid token on any request → back to login. Queued movements
+  // stay on the device and sync again once the same user logs back in.
+  useEffect(() => {
+    setUnauthorizedHandler(handleLogout);
+    return () => setUnauthorizedHandler(null);
+  }, [handleLogout]);
+
+  // EPIC-6 "Módulos Personalizables" — load once we have a session (and
+  // again when the server becomes reachable, in case the first try failed).
   useEffect(() => {
     if (!token) { setModules([]); return; }
-    fetchModules(token).then(setModules).catch(() => setModules([]));
-  }, [token]);
+    if (reachable === false) return;
+    fetchModules(token).then(setModules).catch(() => {});
+  }, [token, reachable]);
+
+  // Keep the device's catalog/locations copy fresh while online (offline scanning).
+  useEffect(() => {
+    if (!token || !warehouse || reachable === false) return;
+    warmOfflineCache(token, warehouse.id).catch(() => {});
+  }, [token, warehouse, reachable]);
 
   function handleLogin(u: User, t: string) {
     setUser(u);
@@ -63,6 +122,7 @@ function AppInner() {
   function handleSelectWarehouse(w: Warehouse) {
     setWarehouse(w);
     setLastWarehouseId(w.id);
+    rememberWarehouse(w).catch(() => {});
     setScreen("home");
   }
 
@@ -84,18 +144,16 @@ function AppInner() {
 
   function handleAddItem(item: MovementItem) {
     setMoveItems(prev => {
-      // Merge serialized items for same product
-      if (item.product.serialized && item.serials.length > 0) {
-        const existing = prev.find(i => i.product.id === item.product.id && i.lot === item.lot);
-        if (existing) {
-          return prev.map(i =>
-            i.id === existing.id
-              ? { ...i, serials: [...i.serials, ...item.serials] }
-              : i
-          );
-        }
-      }
-      return [...prev, item];
+      // Same product + lot accumulates on one line: serials are appended,
+      // non-serialized reads add to the quantity (scanning a box 3× = 3 units).
+      const existing = prev.find(i => i.product.id === item.product.id && i.lot === item.lot);
+      if (!existing) return [...prev, item];
+      return prev.map(i => {
+        if (i.id !== existing.id) return i;
+        return item.product.serialized
+          ? { ...i, serials: [...i.serials, ...item.serials] }
+          : { ...i, quantity: i.quantity + item.quantity };
+      });
     });
   }
 
@@ -107,22 +165,51 @@ function AppInner() {
     setMoveItems(prev => prev.filter(i => i.id !== id));
   }
 
+  function enqueueMove(payload: MovementPayload) {
+    return enqueue({
+      userId: user!.id!,
+      moveType,
+      warehouseName: warehouse!.name,
+      reference: moveReference,
+      units: moveItems.reduce((s, i) => s + (i.product.serialized ? i.serials.length : i.quantity), 0),
+      payload,
+    });
+  }
+
+  // Online: confirm directly so business-rule errors (stock insuficiente,
+  // serie duplicada…) show up on the review screen. No signal or server down:
+  // persist in the offline queue — the same clientId makes the later replay safe.
   async function handleConfirmMove() {
-    // Offline/pending stays a local simulation — real offline queueing isn't
-    // implemented yet (see backend/README.md "Pendiente").
-    if (connection === "online" && token && warehouse) {
-      const result = await createMovement(token, {
-        warehouseId: warehouse.id,
-        type: moveType,
-        reference: moveReference,
-        origin: moveOrigin,
-        destination: moveDest,
-        items: moveItems,
-      });
-      setLastFolio(result.folio);
-    } else {
-      setLastFolio(undefined);
+    if (!token || !user || !warehouse) return;
+    const payload = buildMovementPayload({
+      warehouseId: warehouse.id,
+      type: moveType,
+      reference: moveReference,
+      origin: moveOrigin,
+      destination: moveDest,
+      items: moveItems,
+    }, Crypto.randomUUID());
+
+    if (reachable !== false) {
+      try {
+        const { folio } = await postMovement(token, payload);
+        setMoveOutcome({ kind: "synced", folio });
+        setScreen("movement-result");
+        return;
+      } catch (err) {
+        const expired = err instanceof ApiError && err.status === 401;
+        if (!isTransientError(err) && !expired) throw err;
+        refreshConnectivity();
+        if (expired) {
+          // The unauthorized handler is already sending the user to login; keep the work.
+          enqueueMove(payload);
+          return;
+        }
+      }
     }
+
+    const queued = enqueueMove(payload);
+    setMoveOutcome({ kind: "queued", id: queued.id });
     setScreen("movement-result");
   }
 
@@ -131,19 +218,11 @@ function AppInner() {
     setScreen("move-select");
   }
 
-  function handleLogout() {
-    clearStoredToken();
-    setUser(null);
-    setToken(null);
-    setWarehouse(null);
-    setScreen("login");
-  }
-
-  // Cycle connection status for demo
-  function cycleConnection() {
-    setConnection(c =>
-      c === "online" ? "offline" :
-      c === "offline" ? "pending" : "online"
+  if (booting) {
+    return (
+      <View className="flex-1 bg-[#0F172A] items-center justify-center">
+        <ActivityIndicator size="large" color="#FFFFFF" />
+      </View>
     );
   }
 
@@ -212,15 +291,17 @@ function AppInner() {
       user={user}
       warehouse={warehouse}
       connection={connection}
+      pendingCount={unsyncedCount}
       onNavigate={setScreen}
-      onCycleConnection={cycleConnection}
+      onConnectionPress={() => setScreen("pending")}
       showNav={showBottomNav}
       showHeader={!!headerConfig}
       title={headerConfig?.title}
       onBack={headerConfig?.onBack}
     >
-        {screen === "home" && user && warehouse && (
+        {screen === "home" && token && user && warehouse && (
           <HomeScreen
+            token={token}
             user={user}
             warehouse={warehouse}
             connection={connection}
@@ -229,7 +310,7 @@ function AppInner() {
               if (s === "move-select") setScreen("move-select");
               else setScreen(s);
             }}
-            pendingCount={connection === "pending" ? 1 : 0}
+            pendingCount={unsyncedCount}
           />
         )}
 
@@ -295,14 +376,14 @@ function AppInner() {
           />
         )}
 
-        {screen === "movement-result" && (
+        {screen === "movement-result" && token && moveOutcome && (
           <MovementResultScreen
+            token={token}
             moveType={moveType}
             items={moveItems}
-            connection={connection}
-            folio={lastFolio}
+            outcome={moveOutcome}
             onNewMovement={handleNewMovement}
-            onViewDetail={() => setScreen("history")}
+            onViewDetail={() => setScreen(moveOutcome.kind === "queued" ? "pending" : "history")}
           />
         )}
 
@@ -323,8 +404,8 @@ function AppInner() {
           />
         )}
 
-        {screen === "pending" && (
-          <PendingScreen onBack={() => setScreen("home")} />
+        {screen === "pending" && token && user && (
+          <PendingScreen token={token} userId={user.id!} connection={connection} />
         )}
 
         {screen === "history" && token && (
@@ -336,6 +417,7 @@ function AppInner() {
             user={user}
             warehouse={warehouse}
             modules={modules}
+            unsyncedCount={unsyncedCount}
             onNavigate={setScreen}
             onLogout={handleLogout}
             onChangeWarehouse={() => setScreen("warehouse-select")}
@@ -346,7 +428,7 @@ function AppInner() {
           <ModulesScreen token={token} modules={modules} onModulesChange={setModules} />
         )}
 
-        {screen === "components" && (
+        {screen === "components" && __DEV__ && (
           <ComponentsScreen onBack={() => setScreen("more")} />
         )}
     </AppShell>

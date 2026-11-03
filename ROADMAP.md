@@ -8,16 +8,16 @@ Plan de escalación del producto, desde el MVP actual hasta un WMS multi-empresa
 
 | Fase | Nombre | Objetivo | Estado |
 |---|---|---|---|
-| 0 | MVP operativo móvil | Operar un almacén desde el teléfono contra una API real | 🟡 Casi completa |
-| 1 | Cierre del MVP | Quitar simulaciones y dejar el MVP demostrable de punta a punta | ⚪ Pendiente |
-| 2 | Operación en campo | Que funcione en un almacén real: sin señal, con cámara y lectores | ⚪ Pendiente |
+| 0 | MVP operativo móvil | Operar un almacén desde el teléfono contra una API real | 🟢 Completa |
+| 1 | Cierre del MVP | Quitar simulaciones y dejar el MVP demostrable de punta a punta | 🟢 Completa |
+| 2 | Operación en campo | Que funcione en un almacén real: sin señal, con cámara y lectores | 🟡 Implementada, falta probar en dispositivo |
 | 3 | Portal web y administración | Que el supervisor/admin gestione y monitoree sin tocar la base de datos | ⚪ Pendiente |
 | 4 | Despliegue y multi-empresa | Servir a varias PyMEs en un mismo servidor (VPS) | ⚪ Pendiente |
 | 5 | Escalación funcional | Funciones de WMS avanzado y personalización | ⚪ Futuro |
 
 ---
 
-## Fase 0 — MVP operativo móvil (`v1.0.0-mvp`) 🟡
+## Fase 0 — MVP operativo móvil (`v1.0.0-mvp`) 🟢
 
 Lo que ya existe en el repo.
 
@@ -40,32 +40,37 @@ Lo que ya existe en el repo.
 - [x] **EPIC-6 / OE5 — Módulos personalizables:** catálogo fijo de 6 módulos que el admin activa o desactiva por empresa
 - [x] Siembra automática de datos demo
 
-## Fase 1 — Cierre del MVP ⚪
+## Fase 1 — Cierre del MVP 🟢
 
 Eliminar lo que todavía está simulado o con datos de prueba.
 
-- [ ] Pantalla **Pendientes**: dejar de usar `PENDING_SYNCS` de `src/data.ts`
-- [ ] Mover `parseQR` fuera de `src/data.ts` y definir el formato de QR oficial (versionado)
-- [ ] Indicador de conexión real (hoy se cicla a mano: online → offline → pending)
-- [ ] Persistir la sesión entre aperturas de la app
-- [ ] Preferencias de escaneo (sonido / vibración) que realmente suenen/vibren y se guarden
-- [ ] Ocultar la "Biblioteca de componentes" en builds que no sean de desarrollo
-- [ ] Eliminar `src/data.ts` cuando ya no lo use ninguna pantalla
-- [ ] Actualizar `AGENTS.md` y `backend/README.md` (dicen que solo Login y Selección de almacén usan la API, pero ya casi todo está conectado)
-- [ ] Pruebas mínimas de API para las reglas de movimientos (colección Postman o tests automatizados)
+- [x] Pantalla **Pendientes** conectada a la cola offline real (ya no usa `PENDING_SYNCS`)
+- [x] Formato de etiqueta versionado (`WMSPYME|v1|sku=…|lot=…|serial=…`) en `src/services/scanCodes.ts`, más códigos de barras simples del proveedor
+- [x] Indicador de conexión real: "en línea" = el backend responde en `/health` (NetInfo); al tocarlo abre Pendientes
+- [x] Sesión persistente entre aperturas (también sin conexión); un 401 regresa al login
+- [x] Preferencias de escaneo que suenan/vibran de verdad y se guardan en el dispositivo
+- [x] "Biblioteca de componentes" visible solo en desarrollo (`__DEV__`)
+- [x] `src/data.ts` eliminado
+- [x] Resumen del turno en Inicio con datos reales del día (antes eran números fijos)
+- [x] `AGENTS.md` y `backend/README.md` actualizados
+- [x] Pruebas de integración de la API (`backend/test/movements.test.ts`, `npm test`): 12 casos de reglas de negocio e idempotencia
+- [x] Errores de validación del cuerpo devuelven `400 validation_error` en vez de `500`
 
 **Entregable:** demo completo sin datos simulados en la app.
 
-## Fase 2 — Operación en campo ⚪
+## Fase 2 — Operación en campo 🟡
 
-Lo necesario para usarlo en un almacén real.
+Lo necesario para usarlo en un almacén real. El código está hecho y compila (`expo export`), y la API está probada; **falta probarla en un teléfono real** (sin señal, cámara y lector de mano).
 
-- [ ] **Modo sin conexión real:** cola local de movimientos, reintentos, sincronización al recuperar señal y manejo de conflictos (p. ej. stock insuficiente al sincronizar)
-- [ ] Idempotencia en `POST /movements` (clave del lado del cliente) para no duplicar movimientos al reintentar
-- [ ] **Cámara real** con `expo-camera` (ya instalado y con permisos en `app.json`)
-- [ ] Soporte de lectores de mano (escáneres que funcionan como teclado) y de terminales Android industriales
+- [x] **Modo sin conexión real:** cola persistente (`src/services/syncQueue.ts`), reintento automático al reconectar, al volver a la app y cada 30 s; los rechazos por reglas (stock insuficiente, serie duplicada) quedan como "Rechazado" para reintentar o descartar
+- [x] Caché local de catálogo, inventario, ubicaciones y almacenes para escanear y capturar sin conexión
+- [x] Idempotencia en `POST /movements` por `clientId` (índice único, cubre reintentos simultáneos) y `capturedAt`
+- [x] **Cámara real** con `expo-camera`: QR + EAN/UPC/Code 128/Code 39, sin lecturas repetidas del mismo código, acceso directo a ajustes si se negó el permiso
+- [x] Lectores de mano tipo teclado: Enter, Tab o salto de línea como fin de lectura; modo "Lector integrado" que oculta el teclado y procesa lecturas sin terminador
+- [x] Productos serializados exigen número de serie al escanear; lecturas repetidas de productos sin serie suman cantidad
+- [x] Configuración de EAS Build (`eas.json`, perfil `preview` = APK interno)
+- [ ] Generar el primer APK con EAS (requiere cuenta de Expo) y probar en dispositivo / terminal industrial
 - [ ] Fuentes personalizadas y animaciones que se perdieron al migrar de web a nativo (opcional)
-- [ ] Build instalable (EAS Build) en lugar de solo Expo Go
 
 **Entregable:** app instalable que funciona sin señal y escanea con cámara o lector.
 

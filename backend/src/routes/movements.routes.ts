@@ -23,20 +23,25 @@ const createSchema = z.object({
   type: z.enum(MOVEMENT_TYPES),
   reference: z.string().optional(),
   lines: z.array(lineSchema).min(1),
+  clientId: z.string().min(8).max(64).optional(),
+  capturedAt: z.string().datetime().optional(),
 });
 
 movementsRouter.post("/", async (req, res, next) => {
   try {
     const body = createSchema.parse(req.body);
-    const movement = await createMovement({
+    const { movement, replayed } = await createMovement({
       companyId: req.auth!.companyId,
       warehouseId: body.warehouseId,
       userId: req.auth!.sub,
       type: body.type,
       reference: body.reference,
       lines: body.lines,
+      clientId: body.clientId,
+      capturedAt: body.capturedAt ? new Date(body.capturedAt) : undefined,
     });
-    res.status(201).json({ movement });
+    // 200 on a replay of an already-applied clientId, 201 when newly created.
+    res.status(replayed ? 200 : 201).json({ movement, replayed });
   } catch (err) {
     next(err);
   }

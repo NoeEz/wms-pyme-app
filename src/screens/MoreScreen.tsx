@@ -3,21 +3,35 @@ import { View, Text, Pressable } from "react-native";
 import { Icon, RoleBadge, Dialog } from "../components/ui";
 import type { User, Warehouse, Screen, ModuleInfo } from "../types";
 import { isModuleEnabled } from "../services/modules";
+import { usePreferences, setPreference, type ScanPreferences } from "../services/preferences";
+import { scanFeedback } from "../services/feedback";
 
 interface Props {
   user: User;
   warehouse: Warehouse;
   modules: ModuleInfo[];
+  unsyncedCount: number;
   onNavigate: (s: Screen) => void;
   onLogout: () => void;
   onChangeWarehouse: () => void;
 }
 
-export default function MoreScreen({ user, warehouse, modules, onNavigate, onLogout, onChangeWarehouse }: Props) {
+const PREFERENCE_ROWS: { key: keyof ScanPreferences; icon: string; label: string; desc: string }[] = [
+  { key: 'sound', icon: 'sound', label: 'Sonido al escanear', desc: 'Confirmación sonora por lectura' },
+  { key: 'vibration', icon: 'vibrate', label: 'Vibración al escanear', desc: 'Respuesta háptica por lectura' },
+  { key: 'hardwareScanner', icon: 'scan', label: 'Lector integrado', desc: 'Oculta el teclado en pantalla al escanear (terminales con lector)' },
+];
+
+export default function MoreScreen({ user, warehouse, modules, unsyncedCount, onNavigate, onLogout, onChangeWarehouse }: Props) {
   const historyEnabled = isModuleEnabled(modules, 'history');
-  const [soundEnabled, setSoundEnabled] = useState(true);
-  const [vibEnabled, setVibEnabled] = useState(true);
+  const prefs = usePreferences();
   const [showLogout, setShowLogout] = useState(false);
+
+  function togglePreference(key: keyof ScanPreferences) {
+    setPreference(key, !prefs[key]);
+    // Let the operator hear/feel the setting they just turned on.
+    if (!prefs[key] && (key === 'sound' || key === 'vibration')) scanFeedback('success');
+  }
 
   return (
     <View className="flex-1 bg-[#F8FAFC]">
@@ -67,43 +81,26 @@ export default function MoreScreen({ user, warehouse, modules, onNavigate, onLog
             <Text className="text-xs font-semibold uppercase tracking-wide text-[#64748B]">Preferencias de escaneo</Text>
           </View>
 
-          <View className="px-4 py-3 flex-row items-center justify-between border-b border-[#F1F5F9]">
-            <View className="flex-row items-center gap-3">
-              <Icon name="sound" size={18} color="#64748B" />
-              <View>
-                <Text className="text-sm text-[#0F172A]">Sonido al escanear</Text>
-                <Text className="text-xs text-[#94A3B8]">Confirmación sonora por lectura</Text>
+          {PREFERENCE_ROWS.map((row, i) => (
+            <View key={row.key} className={`px-4 py-3 flex-row items-center justify-between gap-3 ${i > 0 ? 'border-t border-[#F1F5F9]' : ''}`}>
+              <View className="flex-row items-center gap-3 flex-1">
+                <Icon name={row.icon} size={18} color="#64748B" />
+                <View className="flex-1">
+                  <Text className="text-sm text-[#0F172A]">{row.label}</Text>
+                  <Text className="text-xs text-[#94A3B8]">{row.desc}</Text>
+                </View>
               </View>
+              <Pressable
+                onPress={() => togglePreference(row.key)}
+                className={`w-11 h-6 rounded-full relative ${prefs[row.key] ? 'bg-[#4F46E5]' : 'bg-[#CBD5E1]'}`}
+                accessibilityRole="switch"
+                accessibilityState={{ checked: prefs[row.key] }}
+              >
+                <View className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow
+                  ${prefs[row.key] ? 'left-[22px]' : 'left-0.5'}`} />
+              </Pressable>
             </View>
-            <Pressable
-              onPress={() => setSoundEnabled(s => !s)}
-              className={`w-11 h-6 rounded-full relative ${soundEnabled ? 'bg-[#4F46E5]' : 'bg-[#CBD5E1]'}`}
-              accessibilityRole="switch"
-              accessibilityState={{ checked: soundEnabled }}
-            >
-              <View className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow
-                ${soundEnabled ? 'left-[22px]' : 'left-0.5'}`} />
-            </Pressable>
-          </View>
-
-          <View className="px-4 py-3 flex-row items-center justify-between">
-            <View className="flex-row items-center gap-3">
-              <Icon name="vibrate" size={18} color="#64748B" />
-              <View>
-                <Text className="text-sm text-[#0F172A]">Vibración al escanear</Text>
-                <Text className="text-xs text-[#94A3B8]">Respuesta háptica por lectura</Text>
-              </View>
-            </View>
-            <Pressable
-              onPress={() => setVibEnabled(v => !v)}
-              className={`w-11 h-6 rounded-full relative ${vibEnabled ? 'bg-[#4F46E5]' : 'bg-[#CBD5E1]'}`}
-              accessibilityRole="switch"
-              accessibilityState={{ checked: vibEnabled }}
-            >
-              <View className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow
-                ${vibEnabled ? 'left-[22px]' : 'left-0.5'}`} />
-            </Pressable>
-          </View>
+          ))}
         </View>
 
         {/* Navigation items */}
@@ -142,15 +139,17 @@ export default function MoreScreen({ user, warehouse, modules, onNavigate, onLog
           </View>
         )}
 
-        {/* Component library access */}
-        <Pressable
-          onPress={() => onNavigate('components')}
-          className="w-full bg-white rounded-2xl border border-[#E2E8F0] shadow-sm shadow-slate-900/5 flex-row items-center gap-3 px-4 py-3 active:bg-[#F8FAFC]"
-        >
-          <Icon name="filter" size={18} color="#64748B" />
-          <Text className="flex-1 text-sm text-[#0F172A]">Biblioteca de componentes</Text>
-          <Icon name="chevron_right" size={16} color="#94A3B8" />
-        </Pressable>
+        {/* Component library access — development builds only */}
+        {__DEV__ && (
+          <Pressable
+            onPress={() => onNavigate('components')}
+            className="w-full bg-white rounded-2xl border border-[#E2E8F0] shadow-sm shadow-slate-900/5 flex-row items-center gap-3 px-4 py-3 active:bg-[#F8FAFC]"
+          >
+            <Icon name="filter" size={18} color="#64748B" />
+            <Text className="flex-1 text-sm text-[#0F172A]">Biblioteca de componentes</Text>
+            <Icon name="chevron_right" size={16} color="#94A3B8" />
+          </Pressable>
+        )}
 
         {/* Logout */}
         <Pressable
@@ -167,7 +166,9 @@ export default function MoreScreen({ user, warehouse, modules, onNavigate, onLog
       <Dialog
         open={showLogout}
         title="Cerrar sesión"
-        message="¿Seguro que deseas cerrar la sesión? Asegúrate de que todos los movimientos estén sincronizados."
+        message={unsyncedCount > 0
+          ? `Tienes ${unsyncedCount} movimiento(s) sin sincronizar. Se quedarán guardados en este dispositivo y se enviarán cuando vuelvas a iniciar sesión con esta cuenta. ¿Cerrar sesión?`
+          : "¿Seguro que deseas cerrar la sesión?"}
         confirmLabel="Cerrar sesión"
         cancelLabel="Cancelar"
         variant="danger"

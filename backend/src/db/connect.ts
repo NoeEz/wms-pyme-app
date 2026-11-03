@@ -24,5 +24,10 @@ export async function connectDB(): Promise<void> {
   mongoose.set("strictQuery", true);
   await mongoose.connect(env.mongodbUri);
   await ensureReplicaSetInitiated();
+  // Mongoose's background autoIndex fires on connect — before a fresh replica
+  // set has elected a primary — and fails silently. Build indexes explicitly
+  // now: the unique (companyId, clientId) one is what makes movement sync
+  // idempotent under concurrent retries.
+  await Promise.all(Object.values(mongoose.models).map(m => m.createIndexes()));
   console.log(`[db] connected to ${env.mongodbUri}`);
 }

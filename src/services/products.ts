@@ -1,4 +1,4 @@
-import { api } from "./api";
+import { api, cachedGet, isTransientError } from "./api";
 import type { Location, LocationStock, Product } from "../types";
 
 interface ApiProduct {
@@ -38,12 +38,40 @@ function mapProduct(p: ApiProduct, stock: number): Product {
   };
 }
 
+function matchesQuery(p: ApiProduct, query: string): boolean {
+  const q = query.toLowerCase();
+  return p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q) || p.barcodeValues.some(b => b.toLowerCase() === q);
+}
+
+function matchesCode(p: ApiProduct, code: string): boolean {
+  const c = code.toLowerCase();
+  return p.sku.toLowerCase() === c || p.barcodeValues.some(b => b.toLowerCase() === c);
+}
+
+/** Full catalog, cached on the device so scans and manual capture keep working offline. */
+async function fetchCatalog(token: string): Promise<ApiProduct[]> {
+  const { products } = await cachedGet<{ products: ApiProduct[] }>("/products", token);
+  return products;
+}
+
+/** Downloads the catalog and this warehouse's locations ahead of time, so going offline mid-shift is a non-event. */
+export async function warmOfflineCache(token: string, warehouseId: string): Promise<void> {
+  await Promise.all([
+    fetchCatalog(token),
+    cachedGet("/inventory", token),
+    cachedGet(`/inventory/locations?warehouseId=${warehouseId}`, token),
+  ]);
+}
+
 /** Product catalog joined with company-wide stock (summed across every warehouse/location). */
 export async function fetchProductsWithStock(token: string, query = ""): Promise<Product[]> {
-  const [{ products }, { balances }] = await Promise.all([
-    api.get<{ products: ApiProduct[] }>(`/products${query ? `?q=${encodeURIComponent(query)}` : ""}`, token),
-    api.get<{ balances: ApiBalance[] }>("/inventory", token),
+  // Filtering the cached full catalog locally keeps search working offline;
+  // an SME catalog is small enough that this costs nothing.
+  const [catalog, { balances }] = await Promise.all([
+    fetchCatalog(token),
+    cachedGet<{ balances: ApiBalance[] }>("/inventory", token),
   ]);
+  const products = query ? catalog.filter(p => matchesQuery(p, query)) : catalog;
 
   const stockByProductId = new Map<string, number>();
   for (const b of balances) {
@@ -56,8 +84,14 @@ export async function fetchProductsWithStock(token: string, query = ""): Promise
 
 /** Exact lookup by SKU/barcode — used when a scan resolves to a code. */
 export async function findProductByCode(token: string, code: string): Promise<Product | null> {
-  const { products } = await api.get<{ products: ApiProduct[] }>(`/products?q=${encodeURIComponent(code)}`, token);
-  const match = products.find(p => p.sku.toLowerCase() === code.toLowerCase() || p.barcodeValues.some(b => b.toLowerCase() === code.toLowerCase()));
+  let products: ApiProduct[];
+  try {
+    ({ products } = await api.get<{ products: ApiProduct[] }>(`/products?q=${encodeURIComponent(code)}`, token));
+  } catch (err) {
+    if (!isTransientError(err)) throw err;
+    products = await fetchCatalog(token); // offline: resolve against the cached catalog
+  }
+  const match = products.find(p => matchesCode(p, code));
   if (!match) return null;
   return mapProduct(match, 0);
 }

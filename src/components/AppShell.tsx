@@ -10,8 +10,9 @@ interface AppShellProps {
   user: User | null;
   warehouse: Warehouse | null;
   connection: ConnectionStatus;
+  pendingCount?: number;
   onNavigate: (screen: Screen) => void;
-  onCycleConnection?: () => void;
+  onConnectionPress?: () => void;
   children: React.ReactNode;
   showNav?: boolean;
   title?: string;
@@ -26,11 +27,11 @@ const NAV_ITEMS = [
   { id: "more" as Screen, label: "Más", icon: "more" },
 ];
 
-function ConnectionDot({ status }: { status: ConnectionStatus }) {
+function ConnectionDot({ status, pendingCount = 0 }: { status: ConnectionStatus; pendingCount?: number }) {
   const cfg = {
     online: { dot: "bg-[#34D399]", label: "En línea" },
-    offline: { dot: "bg-[#F87171]", label: "Sin conexión" },
-    pending: { dot: "bg-[#FBBF24]", label: "1 pendiente" },
+    offline: { dot: "bg-[#F87171]", label: pendingCount > 0 ? `Sin conexión · ${pendingCount}` : "Sin conexión" },
+    pending: { dot: "bg-[#FBBF24]", label: `${pendingCount} pendiente${pendingCount === 1 ? "" : "s"}` },
   };
   const { dot, label } = cfg[status];
   return (
@@ -42,7 +43,7 @@ function ConnectionDot({ status }: { status: ConnectionStatus }) {
 }
 
 export default function AppShell({
-  screen, user, warehouse, connection, onNavigate, onCycleConnection, children,
+  screen, user, warehouse, connection, pendingCount = 0, onNavigate, onConnectionPress, children,
   showNav = true, title, onBack, showHeader = true,
 }: AppShellProps) {
   const insets = useSafeAreaInsets();
@@ -78,8 +79,8 @@ export default function AppShell({
               </Text>
             )}
           </View>
-          <Pressable onPress={onCycleConnection} disabled={!onCycleConnection}>
-            <ConnectionDot status={connection} />
+          <Pressable onPress={onConnectionPress} disabled={!onConnectionPress} hitSlop={8}>
+            <ConnectionDot status={connection} pendingCount={pendingCount} />
           </Pressable>
         </View>
       </View>

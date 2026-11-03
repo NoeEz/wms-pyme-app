@@ -1,12 +1,17 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { View, Text, Pressable, ActivityIndicator } from "react-native";
-import { CameraView, useCameraPermissions, type BarcodeScanningResult } from "expo-camera";
+import { View, Text, Pressable, ActivityIndicator, Linking } from "react-native";
+import { CameraView, useCameraPermissions, type BarcodeScanningResult, type BarcodeType } from "expo-camera";
 import { Button, Icon, Toast } from "../components/ui";
 import type { MovementItem } from "../types";
-import { parseQR } from "../data";
-import { findProductByCode } from "../services/products";
+import { useScanProcessor } from "../services/scanning";
 
 type CamState = "requesting" | "denied" | "active" | "scanning" | "detected";
+
+// WMS labels are QR; supplier barcodes on boxes are usually EAN/UPC/Code 128.
+const BARCODE_TYPES: BarcodeType[] = ["qr", "ean13", "ean8", "upc_a", "upc_e", "code128", "code39"];
+// The camera reports the same code many times per second while it stays in
+// frame; ignore repeats of the last code for this long.
+const SAME_CODE_COOLDOWN_MS = 2500;
 
 interface Props {
   token: string;
@@ -24,6 +29,8 @@ export default function ScanCameraScreen({ token, items, onAddItem, onClose, onM
   const [toast, setToast] = useState({ visible: false, message: "", type: "success" as "success" | "error" | "warning" });
   const [lastAdded, setLastAdded] = useState<string | null>(null);
   const processingRef = useRef(false);
+  const lastCodeRef = useRef<{ raw: string; at: number } | null>(null);
+  const { process } = useScanProcessor({ token, items, onAddItem });
 
   const totalUnits = items.reduce((s, i) => s + (i.product.serialized ? i.serials.length : i.quantity), 0);
 
@@ -46,51 +53,23 @@ export default function ScanCameraScreen({ token, items, onAddItem, onClose, onM
 
   const handleBarcodeScanned = useCallback(async ({ data: raw }: BarcodeScanningResult) => {
     if (processingRef.current) return;
+    const last = lastCodeRef.current;
+    if (last && last.raw === raw && Date.now() - last.at < SAME_CODE_COOLDOWN_MS) return;
     processingRef.current = true;
     setCamState("scanning");
 
-    const { valid, data, error } = parseQR(raw.trim());
-    if (!valid || !data) {
-      showToast(error ?? "Formato no reconocido", "error");
-      setTimeout(() => { setCamState("active"); processingRef.current = false; }, 900);
-      return;
-    }
+    const outcome = await process(raw);
+    lastCodeRef.current = { raw, at: Date.now() };
+    if (!outcome) { processingRef.current = false; setCamState("active"); return; }
 
-    try {
-      const product = await findProductByCode(token, data.sku ?? data.productId ?? "");
-      if (!product) {
-        showToast("Producto no encontrado en el sistema", "error");
-        setTimeout(() => { setCamState("active"); processingRef.current = false; }, 900);
-        return;
-      }
-
-      if (product.serialized && data.serial) {
-        const existing = items.find(i => i.product.id === product.id);
-        if (existing?.serials.includes(data.serial)) {
-          showToast(`Serie ${data.serial} ya fue registrada`, "warning");
-          setTimeout(() => { setCamState("active"); processingRef.current = false; }, 900);
-          return;
-        }
-      }
-
-      const newItem: MovementItem = {
-        id: `item_${Date.now()}`,
-        product,
-        lot: data.lot,
-        serials: data.serial ? [data.serial] : [],
-        quantity: 1,
-        scannedAt: new Date(),
-      };
-      onAddItem(newItem);
+    const added = outcome.state === "added";
+    if (added) {
       setCamState("detected");
-      setLastAdded(product.name);
-      showToast(`${product.name} agregado`, "success");
-      setTimeout(() => { setCamState("active"); processingRef.current = false; }, 1200);
-    } catch {
-      showToast("Sin conexión con el servidor", "error");
-      setTimeout(() => { setCamState("active"); processingRef.current = false; }, 900);
+      setLastAdded(outcome.product!.name);
     }
-  }, [items, onAddItem, showToast, token]);
+    showToast(outcome.message, added ? "success" : outcome.state === "duplicate" || outcome.state === "needs_serial" ? "warning" : "error");
+    setTimeout(() => { setCamState("active"); processingRef.current = false; }, added ? 1200 : 900);
+  }, [process, showToast]);
 
   return (
     <View className="flex-1 bg-black relative">
@@ -100,7 +79,7 @@ export default function ScanCameraScreen({ token, items, onAddItem, onClose, onM
             style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
             facing="back"
             enableTorch={flashOn}
-            barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
+            barcodeScannerSettings={{ barcodeTypes: BARCODE_TYPES }}
             onBarcodeScanned={handleBarcodeScanned}
           />
         )}
@@ -140,6 +119,7 @@ export default function ScanCameraScreen({ token, items, onAddItem, onClose, onM
               Para usar la cámara, habilita el permiso en Configuración → Aplicaciones → WMS PyME → Permisos → Cámara.
             </Text>
             <View className="flex flex-col w-full gap-2">
+              <Button variant="secondary" fullWidth onClick={() => Linking.openSettings()} icon="settings">Abrir configuración</Button>
               <Button variant="primary" fullWidth onClick={onHandheld} icon="scan">Usar lector handheld</Button>
               <Button variant="ghost" fullWidth onClick={onManual} icon="edit">Captura manual</Button>
             </View>

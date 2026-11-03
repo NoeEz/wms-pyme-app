@@ -313,6 +313,7 @@ export function ScanStateIndicator({ state }: { state: import("../types").ScanSt
     duplicate: { color: "#B45309", icon: "warning", label: "Lectura duplicada — no se agregó" },
     invalid_format: { color: "#DC2626", icon: "x", label: "Formato no reconocido" },
     not_found: { color: "#DC2626", icon: "x", label: "Producto no encontrado" },
+    needs_serial: { color: "#B45309", icon: "warning", label: "Falta número de serie" },
   };
   const { color, icon, label } = cfg[state] ?? cfg.idle;
   return (
