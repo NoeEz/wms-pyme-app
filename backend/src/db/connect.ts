@@ -20,14 +20,31 @@ async function ensureReplicaSetInitiated(): Promise<void> {
   }
 }
 
+// Databases created before login-by-company have companies without a slug.
+// Derive one from the name ("Industrias Nova PyME" → "industrias-nova-pyme");
+// an admin can change it later.
+async function backfillCompanySlugs(): Promise<void> {
+  const companies = mongoose.connection.db!.collection("companies");
+  for (const c of await companies.find({ slug: { $exists: false } }).toArray()) {
+    const base = String(c.name).normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "empresa";
+    let slug = base;
+    for (let n = 2; await companies.findOne({ slug }); n++) slug = `${base}-${n}`;
+    await companies.updateOne({ _id: c._id }, { $set: { slug } });
+    console.log(`[db] company "${c.name}" got login slug "${slug}"`);
+  }
+}
+
 export async function connectDB(): Promise<void> {
   mongoose.set("strictQuery", true);
   await mongoose.connect(env.mongodbUri);
   await ensureReplicaSetInitiated();
+  await backfillCompanySlugs();
   // Mongoose's background autoIndex fires on connect — before a fresh replica
-  // set has elected a primary — and fails silently. Build indexes explicitly
+  // set has elected a primary — and fails silently. Sync indexes explicitly
   // now: the unique (companyId, clientId) one is what makes movement sync
-  // idempotent under concurrent retries.
-  await Promise.all(Object.values(mongoose.models).map(m => m.createIndexes()));
+  // idempotent under concurrent retries. syncIndexes (not createIndexes) also
+  // drops indexes removed from a schema, e.g. the old global unique email.
+  await Promise.all(Object.values(mongoose.models).map(m => m.syncIndexes()));
   console.log(`[db] connected to ${env.mongodbUri}`);
 }

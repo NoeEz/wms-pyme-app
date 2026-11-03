@@ -45,7 +45,7 @@ function inbound(lines: object[], extra: object = {}) {
 }
 
 before(async () => {
-  const login = await call("POST", "/auth/login", { email: "admin@nova.mx", password: "demo1234" }, false);
+  const login = await call("POST", "/auth/login", { company: "nova", email: "admin@nova.mx", password: "demo1234" }, false);
   assert.equal(login.status, 200, `login failed — is the API running at ${API} with the demo seed? ${JSON.stringify(login.data)}`);
   token = login.data.token;
 
@@ -66,7 +66,7 @@ before(async () => {
 });
 
 test("login rejects wrong credentials", async () => {
-  const res = await call("POST", "/auth/login", { email: "admin@nova.mx", password: "nope" }, false);
+  const res = await call("POST", "/auth/login", { company: "nova", email: "admin@nova.mx", password: "nope" }, false);
   assert.equal(res.status, 401);
   assert.equal(res.data.error, "invalid_credentials");
 });

@@ -160,7 +160,7 @@ export default function MoreScreen({ user, warehouse, modules, unsyncedCount, on
           <Text className="text-sm font-medium text-[#DC2626]">Cerrar sesión</Text>
         </Pressable>
 
-        <Text className="text-center text-xs text-[#94A3B8]">v1.0.0-mvp · WMS PyME · Industrias Nova PyME</Text>
+        <Text className="text-center text-xs text-[#94A3B8]">v1.0.0-mvp · WMS PyME{user.companyName ? ` · ${user.companyName}` : ""}</Text>
       </View>
 
       <Dialog

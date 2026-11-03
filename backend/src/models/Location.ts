@@ -7,6 +7,7 @@ const locationSchema = new Schema({
   rack: { type: String, required: true },
   position: { type: String, required: true },
   code: { type: String, required: true }, // compact code, e.g. A-03-R02-P04
+  active: { type: Boolean, default: true },
 }, { timestamps: true });
 
 locationSchema.index({ warehouseId: 1, code: 1 }, { unique: true });

@@ -6,6 +6,7 @@ import { Movement, MovementType } from "../models/Movement";
 import { Product } from "../models/Product";
 import { StockBalance } from "../models/StockBalance";
 import { generateFolio } from "./folio";
+import { assertWarehouse } from "./scope";
 import { ALL_MODULE_KEYS, MOVEMENT_TYPE_TO_MODULE } from "../config/modules";
 
 export interface CreateMovementLineInput {
@@ -70,6 +71,8 @@ async function applyMovement(input: CreateMovementInput) {
   }
 
   if (!lines.length) bad("empty_movement", "El movimiento debe tener al menos un artículo.");
+  await assertWarehouse(companyId, warehouseId);
+  await assertProductsExist(companyId, lines.map(l => l.productId));
   for (const line of lines) {
     if (!(line.quantity > 0)) bad("invalid_quantity", "La cantidad debe ser mayor que cero.");
     if (type === "inbound" && !line.destinationLocationId) bad("missing_destination", "Falta la ubicación destino.");

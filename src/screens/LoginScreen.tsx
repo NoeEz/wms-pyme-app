@@ -1,8 +1,8 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { View, Text } from "react-native";
 import { Button, Input } from "../components/ui";
 import type { User } from "../types";
-import { login } from "../services/auth";
+import { getLastCompany, login } from "../services/auth";
 import { ApiError } from "../services/api";
 
 interface Props {
@@ -10,17 +10,22 @@ interface Props {
 }
 
 export default function LoginScreen({ onLogin }: Props) {
+  const [company, setCompany] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  async function attemptLogin(loginEmail: string, loginPassword: string) {
+  useEffect(() => {
+    getLastCompany().then(last => setCompany(current => current || last));
+  }, []);
+
+  async function attemptLogin(loginCompany: string, loginEmail: string, loginPassword: string) {
     setLoading(true);
     setError('');
     try {
-      const { user, token } = await login(loginEmail, loginPassword);
-      onLogin({ id: user.id, name: user.name, email: user.email, role: user.role }, token);
+      const { user, token } = await login(loginCompany.trim(), loginEmail.trim(), loginPassword);
+      onLogin(user, token);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'No se pudo iniciar sesión. Intenta de nuevo.');
     } finally {
@@ -29,11 +34,11 @@ export default function LoginScreen({ onLogin }: Props) {
   }
 
   function handleLogin() {
-    if (!email || !password) {
+    if (!company.trim() || !email || !password) {
       setError('Completa todos los campos para continuar.');
       return;
     }
-    attemptLogin(email, password);
+    attemptLogin(company, email, password);
   }
 
   return (
@@ -56,7 +61,14 @@ export default function LoginScreen({ onLogin }: Props) {
 
         <View className="flex flex-col gap-4">
           <Input
-            label="Empresa / Correo electrónico"
+            label="Empresa"
+            placeholder="Código de tu empresa, p. ej. nova"
+            value={company}
+            onChange={v => { setCompany(v); setError(''); }}
+            icon="home"
+          />
+          <Input
+            label="Correo electrónico"
             placeholder="usuario@empresa.mx"
             value={email}
             onChange={v => { setEmail(v); setError(''); }}
@@ -84,7 +96,7 @@ export default function LoginScreen({ onLogin }: Props) {
         </View>
 
         <View className="flex-1" />
-        <Text className="text-center text-xs text-[#94A3B8]">v1.0.0-mvp · WMS PyME · Industrias Nova PyME</Text>
+        <Text className="text-center text-xs text-[#94A3B8]">v1.0.0-mvp · WMS PyME</Text>
       </View>
     </View>
   );

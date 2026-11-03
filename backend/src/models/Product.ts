@@ -11,6 +11,11 @@ const productSchema = new Schema({
   unit: { type: String, default: "pza" },
   tracking: { type: String, enum: TRACKING_MODES, default: "none" },
   lowStockThreshold: { type: Number, default: 0 },
+  // Optional unit cost, for inventory valuation and turnover in money.
+  cost: { type: Number, min: 0 },
+  // 3PL owner; unset means the company's own merchandise.
+  customerId: { type: Schema.Types.ObjectId, ref: "Customer" },
+  active: { type: Boolean, default: true },
 }, { timestamps: true });
 
 productSchema.index({ companyId: 1, sku: 1 }, { unique: true });

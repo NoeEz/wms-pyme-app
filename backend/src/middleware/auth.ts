@@ -8,6 +8,7 @@ export interface AuthPayload {
   companyId: string;
   role: Role;
   name: string;
+  customerId?: string; // set for role "client"
 }
 
 declare global {

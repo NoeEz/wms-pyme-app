@@ -28,18 +28,22 @@ npm install
 npm run dev                   # tsx watch — recarga en caliente, usa .env (localhost:27017)
 ```
 
-Usuarios demo (mismos que en `../src/data.ts`), contraseña `demo1234` para los tres:
+El login pide **empresa** (código/slug), correo y contraseña. Usuarios demo, contraseña `demo1234` para todos:
 
-- `maria.lopez@nova.mx` — operador
-- `carlos.ruiz@nova.mx` — supervisor
-- `admin@nova.mx` — administrador
+| Empresa | Correo | Rol |
+|---|---|---|
+| `nova` | `maria.lopez@nova.mx` | operador |
+| `nova` | `carlos.ruiz@nova.mx` | supervisor |
+| `nova` | `admin@nova.mx` | administrador |
+| `nova` | `compras@refvalle.mx` | cliente 3PL (Refaccionaria del Valle, solo ve su producto `FIL-AC-90`) |
+| `alfa` | `admin@nova.mx` | administrador de otra empresa (mismo correo a propósito: el correo es único por empresa) |
 
 ## Endpoints
 
 Todos menos `/auth/login` requieren `Authorization: Bearer <token>`.
 
-- `POST /api/auth/login` `{ email, password }` → `{ token, user }`
-- `GET /api/auth/me`
+- `POST /api/auth/login` `{ company, email, password }` → `{ token, user, company, customer }` (`company` es el slug; `customer` solo para rol `client`). Empresa, correo o contraseña incorrectos dan el mismo `401 invalid_credentials`.
+- `GET /api/auth/me` → `{ user, company, customer }`
 - `GET /api/warehouses`
 - `GET /api/products?q=`
 - `GET /api/products/:id` → producto + existencias por ubicación + últimos movimientos
@@ -52,9 +56,16 @@ Todos menos `/auth/login` requieren `Authorization: Bearer <token>`.
 - `GET /api/movements?warehouseId=&status=`
 - `GET /api/movements/:id`
 
+### Multi-empresa y clientes 3PL
+
+- Toda ruta filtra por la empresa del token (`src/services/scope.ts`): un almacén, ubicación o producto de otra empresa responde `404` (`warehouse_not_found`, `location_not_found`, `not_found`) o `422 product_not_found` al moverlo. Un ID mal formado es `400 invalid_id`.
+- Roles: `operator`, `supervisor`, `admin` y `client`. Un usuario `client` pertenece a un `Customer` (cliente 3PL cuya mercancía guarda la empresa); solo ve los productos con ese `customerId`, sus existencias y, de cada movimiento, solo sus líneas. No puede crear movimientos (`403 forbidden`) y la app móvil no lo deja entrar: usa el portal web.
+- `Product.cost` (opcional) es el costo unitario para valuar inventario.
+- Bases creadas antes de este cambio: al arrancar, la API le asigna un slug a cada empresa sin él, derivado del nombre (`Industrias Nova PyME` → `industrias-nova-pyme`, se ve en el log), y quita el índice único global de correo.
+
 ## Pruebas
 
-Pruebas de integración de las reglas de movimientos e idempotencia (`test/movements.test.ts`, `node:test`). Corren contra una API viva con los datos demo:
+Pruebas de integración de las reglas de movimientos e idempotencia (`test/movements.test.ts`) y de login por empresa, aislamiento entre empresas y rol cliente 3PL (`test/tenancy.test.ts`), con `node:test`. Los archivos corren uno a la vez porque comparten las existencias demo. Corren contra una API viva con los datos demo:
 
 ```bash
 docker compose up -d --build
@@ -74,4 +85,4 @@ Cada prueba crea sus propios datos (series y referencias aleatorias), así que s
 
 ## Pendiente (siguientes fases)
 
-- Alta/edición de catálogo (productos, almacenes, ubicaciones, usuarios), portal web de monitoreo y despliegue en VPS — ver `../ROADMAP.md` (fases 3 y 4).
+- Alta/edición de catálogo (productos, almacenes, ubicaciones, usuarios, clientes 3PL), portal web de monitoreo y despliegue en VPS — ver `../ROADMAP.md` (fases 3 y 4).

@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { ZodError } from "zod";
+import mongoose from "mongoose";
 
 export class HttpError extends Error {
   status: number;
@@ -17,6 +18,9 @@ export function errorHandler(err: unknown, _req: Request, res: Response, _next: 
   }
   if (err instanceof ZodError) {
     return res.status(400).json({ error: "validation_error", message: "Datos inválidos en la solicitud.", issues: err.issues });
+  }
+  if (err instanceof mongoose.Error.CastError) {
+    return res.status(400).json({ error: "invalid_id", message: "Identificador inválido en la solicitud." });
   }
   console.error(err);
   return res.status(500).json({ error: "internal_error", message: "Error interno del servidor." });

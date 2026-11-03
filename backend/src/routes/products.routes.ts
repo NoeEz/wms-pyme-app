@@ -4,6 +4,7 @@ import { HttpError } from "../middleware/errorHandler";
 import { Product } from "../models/Product";
 import { StockBalance } from "../models/StockBalance";
 import { Movement } from "../models/Movement";
+import { productScope } from "../services/scope";
 
 export const productsRouter = Router();
 
@@ -12,7 +13,7 @@ productsRouter.use(verifyJWT);
 productsRouter.get("/", async (req, res, next) => {
   try {
     const q = String(req.query.q ?? "").trim();
-    const filter: Record<string, unknown> = { companyId: req.auth!.companyId };
+    const filter: Record<string, unknown> = { ...productScope(req.auth!), active: { $ne: false } };
     if (q) {
       filter.$or = [
         { name: { $regex: q, $options: "i" } },
@@ -29,7 +30,7 @@ productsRouter.get("/", async (req, res, next) => {
 
 productsRouter.get("/:id", async (req, res, next) => {
   try {
-    const product = await Product.findOne({ _id: req.params.id, companyId: req.auth!.companyId });
+    const product = await Product.findOne({ _id: req.params.id, ...productScope(req.auth!) });
     if (!product) throw new HttpError(404, "not_found", "Producto no encontrado.");
 
     const balances = await StockBalance.find({ productId: product._id }).populate("locationId");

@@ -7,17 +7,21 @@ const TOKEN_KEY = "wms_pyme_token";
 // Non-secret session context, kept so the app reopens where the operator left
 // off — even offline, which is when restarting the app is most likely.
 const SESSION_KEY = "wms_pyme_session_v1";
+// Last company code typed at login — kept across logouts so operators don't
+// retype it on a shared device.
+const LAST_COMPANY_KEY = "wms_pyme_last_company";
 
 export interface AuthUser {
   id: string;
   name: string;
   email: string;
-  role: Role;
+  role: Role | "client";
 }
 
 export interface LoginResult {
   token: string;
   user: AuthUser;
+  company: { id: string; name: string; slug: string };
 }
 
 export interface StoredSession {
@@ -26,11 +30,21 @@ export interface StoredSession {
   warehouse?: Warehouse;
 }
 
-export async function login(email: string, password: string): Promise<LoginResult> {
-  const result = await api.post<LoginResult>("/auth/login", { email, password });
+export async function login(company: string, email: string, password: string): Promise<{ token: string; user: User }> {
+  const result = await api.post<LoginResult>("/auth/login", { company, email, password });
+  // 3PL client users ("client") only have the web portal; the app operates the warehouse.
+  if (result.user.role === "client") {
+    throw new ApiError(403, "forbidden", "Tu cuenta es de cliente: consulta tu inventario en el portal web.");
+  }
+  const user: User = { ...result.user, role: result.user.role, companyName: result.company.name };
   await SecureStore.setItemAsync(TOKEN_KEY, result.token);
-  await writeJSON(SESSION_KEY, { user: result.user });
-  return result;
+  await writeJSON(SESSION_KEY, { user });
+  await writeJSON(LAST_COMPANY_KEY, result.company.slug);
+  return { token: result.token, user };
+}
+
+export async function getLastCompany(): Promise<string> {
+  return readJSON<string>(LAST_COMPANY_KEY, "");
 }
 
 export async function getStoredToken(): Promise<string | null> {

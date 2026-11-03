@@ -11,7 +11,7 @@ Plan de escalación del producto, desde el MVP actual hasta un WMS multi-empresa
 | 0 | MVP operativo móvil | Operar un almacén desde el teléfono contra una API real | 🟢 Completa |
 | 1 | Cierre del MVP | Quitar simulaciones y dejar el MVP demostrable de punta a punta | 🟢 Completa |
 | 2 | Operación en campo | Que funcione en un almacén real: sin señal, con cámara y lectores | 🟡 Implementada, falta probar en dispositivo |
-| 3 | Portal web y administración | Que el supervisor/admin gestione y monitoree sin tocar la base de datos | ⚪ Pendiente |
+| 3 | Portal web y administración | Que la PyME y sus clientes 3PL gestionen y monitoreen sin tocar la base de datos | 🟡 En curso |
 | 4 | Despliegue y multi-empresa | Servir a varias PyMEs en un mismo servidor (VPS) | ⚪ Pendiente |
 | 5 | Escalación funcional | Funciones de WMS avanzado y personalización | ⚪ Futuro |
 
@@ -74,10 +74,18 @@ Lo necesario para usarlo en un almacén real. El código está hecho y compila (
 
 **Entregable:** app instalable que funciona sin señal y escanea con cámara o lector.
 
-## Fase 3 — Portal web y administración ⚪
+## Fase 3 — Portal web y administración 🟡
 
-Hoy el catálogo solo se crea con el script de siembra; no hay altas, cambios ni bajas.
+Decisiones tomadas (nov 2026): portal en `web/` (Vite + React + TS + Tailwind) para todos los roles; login por **código de empresa + correo**; clientes 3PL con rol `client` que ven solo sus productos (el dueño se asigna **por producto**); costo unitario opcional; conteos físicos desde el portal que generan ajustes.
 
+**Bloque 1 — Backend multi-empresa** 🟢
+- [x] Login por empresa (`Company.slug`), correo único por empresa, migración automática de bases existentes
+- [x] Aislamiento entre empresas en todas las rutas (corrige: ubicaciones de almacenes ajenos visibles, movimientos sobre almacenes/productos ajenos)
+- [x] Clientes 3PL (`Customer`, `Product.customerId`, rol `client` de solo lectura), `Product.cost`
+- [x] App móvil con campo "Empresa"; pruebas de aislamiento (`backend/test/tenancy.test.ts`)
+
+**Siguientes bloques**
+- [ ] API del portal: CRUD, conteos/ajustes (`adjustment`), `/dashboard/*` con KPIs, bitácora
 - [ ] **Portal web de monitoreo** (mencionado en la tesina): tablero de existencias, movimientos del día y alertas de stock bajo
 - [ ] Gestión de catálogo desde el portal (y endpoints en la API): productos, almacenes, ubicaciones (zona/pasillo/rack/posición)
 - [ ] Gestión de usuarios y roles por empresa
