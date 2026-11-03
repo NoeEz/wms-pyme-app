@@ -1,7 +1,11 @@
 import { Schema, model, InferSchemaType, Types } from "mongoose";
 
-export const MOVEMENT_TYPES = ["inbound", "outbound", "transfer"] as const;
+// "adjustment" is created only by a physical count (services/countService.ts),
+// never posted by the app: POST /movements accepts OPERATIONAL_MOVEMENT_TYPES.
+export const MOVEMENT_TYPES = ["inbound", "outbound", "transfer", "adjustment"] as const;
 export type MovementType = (typeof MOVEMENT_TYPES)[number];
+export const OPERATIONAL_MOVEMENT_TYPES = ["inbound", "outbound", "transfer"] as const;
+export type OperationalMovementType = (typeof OPERATIONAL_MOVEMENT_TYPES)[number];
 
 export const MOVEMENT_STATUSES = ["draft", "local_pending", "syncing", "completed", "failed"] as const;
 export type MovementStatus = (typeof MOVEMENT_STATUSES)[number];
@@ -33,6 +37,7 @@ const movementSchema = new Schema({
   capturedAt: { type: Date },
 }, { timestamps: { createdAt: "createdAt", updatedAt: false } });
 
+movementSchema.index({ companyId: 1, createdAt: -1 });
 movementSchema.index(
   { companyId: 1, clientId: 1 },
   { unique: true, partialFilterExpression: { clientId: { $type: "string" } } },

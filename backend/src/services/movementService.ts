@@ -2,7 +2,7 @@ import mongoose, { Types } from "mongoose";
 import { HttpError } from "../middleware/errorHandler";
 import { Company } from "../models/Company";
 import { Location } from "../models/Location";
-import { Movement, MovementType } from "../models/Movement";
+import { Movement, OperationalMovementType } from "../models/Movement";
 import { Product } from "../models/Product";
 import { StockBalance } from "../models/StockBalance";
 import { generateFolio } from "./folio";
@@ -22,7 +22,7 @@ export interface CreateMovementInput {
   companyId: string;
   warehouseId: string;
   userId: string;
-  type: MovementType;
+  type: OperationalMovementType;
   reference?: string;
   lines: CreateMovementLineInput[];
   clientId?: string;
@@ -88,7 +88,7 @@ async function applyMovement(input: CreateMovementInput) {
   // Every referenced location must belong to the selected warehouse.
   const locationIds = [...new Set(lines.flatMap(l => [l.sourceLocationId, l.destinationLocationId].filter(Boolean)))] as string[];
   if (locationIds.length) {
-    const count = await Location.countDocuments({ _id: { $in: locationIds }, warehouseId });
+    const count = await Location.countDocuments({ _id: { $in: locationIds }, warehouseId, active: { $ne: false } });
     if (count !== locationIds.length) bad("location_outside_warehouse", "La ubicación no pertenece al almacén seleccionado.");
   }
 
@@ -172,6 +172,6 @@ async function applyMovement(input: CreateMovementInput) {
 }
 
 export async function assertProductsExist(companyId: string, productIds: string[]): Promise<void> {
-  const count = await Product.countDocuments({ _id: { $in: productIds }, companyId });
+  const count = await Product.countDocuments({ _id: { $in: productIds }, companyId, active: { $ne: false } });
   if (count !== new Set(productIds).size) bad("product_not_found", "Uno o más productos no existen.");
 }

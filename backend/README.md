@@ -63,9 +63,42 @@ Todos menos `/auth/login` requieren `Authorization: Bearer <token>`.
 - `Product.cost` (opcional) es el costo unitario para valuar inventario.
 - Bases creadas antes de este cambio: al arrancar, la API le asigna un slug a cada empresa sin él, derivado del nombre (`Industrias Nova PyME` → `industrias-nova-pyme`, se ve en el log), y quita el índice único global de correo.
 
+### API del portal web (fase 3)
+
+Permisos: **admin** = todo; **supervisor** = catálogo de productos y ubicaciones, conteos, bitácora; **operador** = lectura; **client** = lectura de lo suyo. Toda alta o cambio queda en la bitácora con valores antes/después. No hay borrados: se desactiva (`active: false`, o `state: "inactive"` en almacenes), y no se puede desactivar un producto o ubicación con existencias (`422 product_has_stock` / `location_has_stock`) ni cambiar el seguimiento lote/serie de un producto con existencias (`422 tracking_locked`). Códigos repetidos (SKU, ubicación, correo, slug) dan `409 duplicate`.
+
+| Ruta | Quién | Qué |
+|---|---|---|
+| `GET/PATCH /api/company` | todos / admin | Nombre y código de login (`slug`) |
+| `POST /api/warehouses`, `PATCH /api/warehouses/:id` | admin | Almacenes |
+| `GET/POST /api/locations`, `PATCH /api/locations/:id` | todos / supervisor+ | Ubicaciones (`?warehouseId=&includeInactive=true`) |
+| `POST /api/products`, `PATCH /api/products/:id` | supervisor+ | Productos (`cost`, `customerId`, `active`); `GET ?includeInactive=true` |
+| `GET/POST /api/customers`, `PATCH /api/customers/:id` | personal / admin | Clientes 3PL; desactivar uno bloquea el login de sus usuarios (`403 customer_inactive`) |
+| `GET/POST /api/users`, `PATCH /api/users/:id` | admin | Usuarios; contraseña ≥ 8; un admin no puede cambiar su propio rol ni desactivarse |
+| `GET /api/audit` | supervisor+ | Bitácora (`?entity=&entityId=&from=&to=&before=&limit=`) |
+| `GET/POST /api/counts` | supervisor+ | Conteo físico de una ubicación `{ warehouseId, locationId, lines: [{ productId, counted }], notes? }`: fija la existencia contada y, si hay diferencias, crea un movimiento `adjustment` (folio `AJU-…`). La app no puede enviar `adjustment` a `POST /movements` y no los muestra en su historial |
+| `GET /api/dashboard/overview` | todos | KPIs del periodo (ver abajo) |
+| `GET /api/dashboard/stock` | todos | Salud por producto: existencia, valor, días de inventario, último movimiento, estado `stockout`/`low`/`slow`/`ok` (`?days=30`) |
+| `GET /api/reports/kardex?productId=` | todos | Kardex con saldo inicial, entradas, salidas y saldo corrido |
+| `GET /api/reports/movements` | todos | Una fila por línea de movimiento (`?type=`), máx. 5000 movimientos |
+| `GET /api/reports/stock-by-location` | todos | Existencias por ubicación, valuadas |
+
+Dashboard y reportes aceptan `warehouseId`, `from`/`to` (ISO) y `tzOffset` (minutos de `Date#getTimezoneOffset()`, 360 en CDMX) para agrupar por día local; periodo por defecto: últimos 30 días. `GET /api/movements` acepta además `type`, `from`, `to` y `limit` (≤ 200).
+
+**KPIs de `/dashboard/overview`** (definiciones de WERC DC Measures y SCOR):
+- `stock`: unidades, SKUs con existencia, valor (con `cost`), productos en stock bajo y agotados, ubicaciones ocupadas.
+- `movements`: totales por tipo (movimientos, líneas, unidades) y serie diaria.
+- `operators`: productividad por usuario (líneas y unidades); `null` para clientes 3PL.
+- `sync`: retraso entre captura en el dispositivo y registro en el servidor (promedio, p95, máximo, cuántos llegaron con más de 15 min).
+- `accuracy`: **precisión de inventario por ubicación** (WERC: conteos sin diferencia ÷ conteos) y por línea, de los conteos del periodo; `null` para clientes.
+- `flow`: salidas, **días de inventario** (existencia ÷ salida diaria promedio) y **rotación** (salidas del periodo ÷ inventario actual, en dinero si hay costos).
+- `alerts`: agotados y stock bajo.
+
+El límite de solicitudes es por IP: `RATE_LIMIT_PER_MINUTE` (300 por defecto; `docker-compose.yml` usa 1000 en desarrollo).
+
 ## Pruebas
 
-Pruebas de integración de las reglas de movimientos e idempotencia (`test/movements.test.ts`) y de login por empresa, aislamiento entre empresas y rol cliente 3PL (`test/tenancy.test.ts`), con `node:test`. Los archivos corren uno a la vez porque comparten las existencias demo. Corren contra una API viva con los datos demo:
+Pruebas de integración de las reglas de movimientos e idempotencia (`test/movements.test.ts`), de login por empresa, aislamiento entre empresas y rol cliente 3PL (`test/tenancy.test.ts`) y de la API del portal (`test/portal.test.ts`), con `node:test`. Los archivos corren uno a la vez porque comparten las existencias demo. Corren contra una API viva con los datos demo:
 
 ```bash
 docker compose up -d --build

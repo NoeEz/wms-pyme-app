@@ -42,9 +42,9 @@ before(async () => {
   alfa = (await login("alfa", "admin@nova.mx")).token;
   client = (await login("nova", "compras@refvalle.mx")).token;
 
-  novaWarehouseId = (await call("GET", "/warehouses", nova)).data.warehouses[0]._id;
+  novaWarehouseId = (await call("GET", "/warehouses", nova)).data.warehouses.find((w: any) => w.name === "Centro de distribución")._id;
   novaLocationId = (await call("GET", `/inventory/locations?warehouseId=${novaWarehouseId}`, nova)).data.locations[0]._id;
-  alfaWarehouseId = (await call("GET", "/warehouses", alfa)).data.warehouses[0]._id;
+  alfaWarehouseId = (await call("GET", "/warehouses", alfa)).data.warehouses.find((w: any) => w.name === "Bodega Alfa")._id;
   alfaLocationId = (await call("GET", `/inventory/locations?warehouseId=${alfaWarehouseId}`, alfa)).data.locations[0]._id;
   alfaProductId = (await call("GET", "/products", alfa)).data.products[0]._id;
 

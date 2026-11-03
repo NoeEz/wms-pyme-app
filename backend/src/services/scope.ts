@@ -1,6 +1,7 @@
 import { isValidObjectId, Types } from "mongoose";
 import type { AuthPayload } from "../middleware/auth";
 import { HttpError } from "../middleware/errorHandler";
+import { Customer } from "../models/Customer";
 import { Product } from "../models/Product";
 import { Warehouse } from "../models/Warehouse";
 
@@ -27,4 +28,11 @@ export async function assertWarehouse(companyId: string, warehouseId: string) {
     : null;
   if (!warehouse) throw new HttpError(404, "warehouse_not_found", "El almacén no existe en tu empresa.");
   return warehouse;
+}
+
+/** 422 unless the 3PL customer exists in the company. */
+export async function assertCustomer(companyId: string, customerId: string) {
+  const customer = isValidObjectId(customerId) ? await Customer.findOne({ _id: customerId, companyId }) : null;
+  if (!customer) throw new HttpError(422, "customer_not_found", "El cliente no existe en tu empresa.");
+  return customer;
 }

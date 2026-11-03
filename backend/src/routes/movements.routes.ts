@@ -2,7 +2,7 @@ import { Router, type Request } from "express";
 import { z } from "zod";
 import { verifyJWT, requireRole } from "../middleware/auth";
 import { HttpError } from "../middleware/errorHandler";
-import { Movement, MOVEMENT_TYPES } from "../models/Movement";
+import { Movement, MOVEMENT_TYPES, OPERATIONAL_MOVEMENT_TYPES } from "../models/Movement";
 import { createMovement } from "../services/movementService";
 import { scopedProductIds } from "../services/scope";
 
@@ -34,7 +34,7 @@ const lineSchema = z.object({
 
 const createSchema = z.object({
   warehouseId: z.string(),
-  type: z.enum(MOVEMENT_TYPES),
+  type: z.enum(OPERATIONAL_MOVEMENT_TYPES),
   reference: z.string().optional(),
   lines: z.array(lineSchema).min(1),
   clientId: z.string().min(8).max(64).optional(),
@@ -62,17 +62,28 @@ movementsRouter.post("/", requireRole("operator", "supervisor", "admin"), async 
   }
 });
 
+const listSchema = z.object({
+  warehouseId: z.string().optional(),
+  status: z.string().optional(),
+  type: z.enum(MOVEMENT_TYPES).optional(),
+  from: z.coerce.date().optional(),
+  to: z.coerce.date().optional(),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+});
+
 movementsRouter.get("/", async (req, res, next) => {
   try {
-    const { warehouseId, status } = req.query as Record<string, string | undefined>;
+    const { warehouseId, status, type, from, to, limit } = listSchema.parse(req.query);
     const filter: Record<string, unknown> = { companyId: req.auth!.companyId };
     if (warehouseId) filter.warehouseId = warehouseId;
     if (status) filter.status = status;
+    if (type) filter.type = type;
+    if (from || to) filter.createdAt = { ...(from ? { $gte: from } : {}), ...(to ? { $lte: to } : {}) };
     const ownIds = await clientProductIds(req);
     if (ownIds) filter["lines.productId"] = { $in: [...ownIds] };
     const movements = await Movement.find(filter)
       .sort({ createdAt: -1 })
-      .limit(50)
+      .limit(limit)
       .populate("userId", "name role")
       .populate("lines.sourceLocationId")
       .populate("lines.destinationLocationId");

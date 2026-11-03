@@ -27,6 +27,8 @@ services:
       MONGODB_URI: "mongodb://mongo:27017/wms_pyme?directConnection=true"
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-8h}
+      # Development default; the integration tests alone make ~300 requests.
+      RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-1000}
     depends_on:
       mongo:
         condition: service_healthy

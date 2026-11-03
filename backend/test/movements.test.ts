@@ -53,10 +53,10 @@ before(async () => {
   await call("PATCH", "/modules", { enabledModules: ["inbound", "outbound", "transfer", "camera_scan", "inventory", "history"] });
 
   const { data: wh } = await call("GET", "/warehouses");
-  warehouseId = wh.warehouses[0]._id;
+  warehouseId = wh.warehouses.find((w: any) => w.name === "Centro de distribución")._id;
   const { data: locs } = await call("GET", `/inventory/locations?warehouseId=${warehouseId}`);
   [locA, locB] = locs.locations.map((l: any) => l._id);
-  const { data: otherLocs } = await call("GET", `/inventory/locations?warehouseId=${wh.warehouses[1]._id}`);
+  const { data: otherLocs } = await call("GET", `/inventory/locations?warehouseId=${wh.warehouses.find((w: any) => w.name === "Planta Norte")._id}`);
   otherWarehouseLocationId = otherLocs.locations[0]._id;
 
   const { data: prods } = await call("GET", "/products");

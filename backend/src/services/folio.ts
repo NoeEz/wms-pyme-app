@@ -4,6 +4,7 @@ const PREFIX: Record<MovementType, string> = {
   inbound: "ENT",
   outbound: "SAL",
   transfer: "TRA",
+  adjustment: "AJU",
 };
 
 export function generateFolio(type: MovementType, sequence: number): string {

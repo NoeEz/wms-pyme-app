@@ -74,7 +74,8 @@ export async function postMovement(token: string, payload: MovementPayload): Pro
 interface ApiUser { name: string }
 interface ApiLocationRef { zone: string; aisle: string; rack: string; position: string }
 interface ApiMovementLine { sourceLocationId?: ApiLocationRef | string; destinationLocationId?: ApiLocationRef | string }
-interface ApiMovementListItem extends ApiMovement {
+interface ApiMovementListItem extends Omit<ApiMovement, "type"> {
+  type: ApiMovement["type"] | "adjustment";
   createdAt: string;
   userId: ApiUser | string;
   reference?: string;
@@ -92,7 +93,7 @@ function mapMovement(m: ApiMovementListItem): MovementSummary {
     id: m._id,
     folio: m.folio,
     createdAt: m.createdAt,
-    type: TYPE_FROM_BACKEND[m.type],
+    type: TYPE_FROM_BACKEND[m.type as ApiMovement["type"]], // adjustments are filtered out before mapping
     status: m.status,
     date: new Date(m.createdAt).toLocaleString("es-MX", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }),
     user: typeof m.userId === "string" ? "—" : m.userId.name,
@@ -106,5 +107,7 @@ function mapMovement(m: ApiMovementListItem): MovementSummary {
 export async function fetchMovements(token: string, warehouseId?: string): Promise<MovementSummary[]> {
   const query = warehouseId ? `?warehouseId=${warehouseId}` : "";
   const { movements } = await api.get<{ movements: ApiMovementListItem[] }>(`/movements${query}`, token);
-  return movements.map(mapMovement);
+  // Adjustments come from physical counts in the web portal; the app's
+  // history and shift summary only cover the movements operators capture.
+  return movements.filter(m => m.type in TYPE_FROM_BACKEND).map(mapMovement);
 }

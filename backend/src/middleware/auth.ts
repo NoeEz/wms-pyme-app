@@ -46,3 +46,9 @@ export function requireRole(...roles: Role[]) {
     next();
   };
 }
+
+/** Warehouse staff — everyone but external 3PL "client" users. */
+export const staffOnly = requireRole("operator", "supervisor", "admin");
+/** Catalog management (products, locations) and physical counts. */
+export const managersOnly = requireRole("supervisor", "admin");
+export const adminOnly = requireRole("admin");

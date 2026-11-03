@@ -84,8 +84,14 @@ Decisiones tomadas (nov 2026): portal en `web/` (Vite + React + TS + Tailwind) p
 - [x] Clientes 3PL (`Customer`, `Product.customerId`, rol `client` de solo lectura), `Product.cost`
 - [x] App móvil con campo "Empresa"; pruebas de aislamiento (`backend/test/tenancy.test.ts`)
 
+**Bloque 2 — API del portal** 🟢
+- [x] CRUD de empresa, almacenes, ubicaciones, productos, clientes 3PL y usuarios, con bajas lógicas y permisos por rol
+- [x] Bitácora de auditoría (`AuditLog`, `GET /api/audit`) con valores antes/después
+- [x] Conteos físicos (`InventoryCount`) que generan movimientos de ajuste `AJU-…`
+- [x] KPIs (`/api/dashboard/overview`, `/stock`): precisión de inventario, días de inventario, rotación, productividad, retraso de sincronización, alertas
+- [x] Reportes (`/api/reports/*`): kardex, movimientos por periodo, existencias por ubicación
+
 **Siguientes bloques**
-- [ ] API del portal: CRUD, conteos/ajustes (`adjustment`), `/dashboard/*` con KPIs, bitácora
 - [ ] **Portal web de monitoreo** (mencionado en la tesina): tablero de existencias, movimientos del día y alertas de stock bajo
 - [ ] Gestión de catálogo desde el portal (y endpoints en la API): productos, almacenes, ubicaciones (zona/pasillo/rack/posición)
 - [ ] Gestión de usuarios y roles por empresa

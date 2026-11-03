@@ -45,6 +45,9 @@ authRouter.post("/login", async (req, res, next) => {
 
     const valid = await bcrypt.compare(password, user.passwordHash);
     if (!valid) invalidCredentials();
+    if (user.role === "client" && !(await Customer.exists({ _id: user.customerId, active: { $ne: false } }))) {
+      throw new HttpError(403, "customer_inactive", "El acceso de tu empresa cliente está suspendido. Contacta al almacén.");
+    }
 
     const payload: AuthPayload = {
       sub: user._id.toString(),

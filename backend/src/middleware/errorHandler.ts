@@ -22,6 +22,9 @@ export function errorHandler(err: unknown, _req: Request, res: Response, _next: 
   if (err instanceof mongoose.Error.CastError) {
     return res.status(400).json({ error: "invalid_id", message: "Identificador inválido en la solicitud." });
   }
+  if ((err as { code?: number })?.code === 11000) {
+    return res.status(409).json({ error: "duplicate", message: "Ya existe un registro con ese código o correo.", fields: Object.keys((err as any).keyValue ?? {}) });
+  }
   console.error(err);
   return res.status(500).json({ error: "internal_error", message: "Error interno del servidor." });
 }
