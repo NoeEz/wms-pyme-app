@@ -15,6 +15,8 @@ const TYPE_FROM_BACKEND: Record<"inbound" | "outbound" | "transfer", MoveType> =
 
 export interface CreateMovementParams {
   warehouseId: string;
+  /** Transfer to another warehouse (destination location belongs to it). */
+  destinationWarehouseId?: string;
   type: MoveType;
   reference?: string;
   origin?: Location;
@@ -27,6 +29,7 @@ export interface MovementPayload {
   clientId: string;
   capturedAt: string;
   warehouseId: string;
+  destinationWarehouseId?: string;
   type: "inbound" | "outbound" | "transfer";
   reference?: string;
   lines: Record<string, unknown>[];
@@ -59,6 +62,9 @@ export function buildMovementPayload(params: CreateMovementParams, clientId: str
     clientId,
     capturedAt: capturedAt.toISOString(),
     warehouseId: params.warehouseId,
+    ...(params.type === "transfer" && params.destinationWarehouseId && params.destinationWarehouseId !== params.warehouseId
+      ? { destinationWarehouseId: params.destinationWarehouseId }
+      : {}),
     type: TYPE_TO_BACKEND[params.type],
     reference: params.reference,
     lines,

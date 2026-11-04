@@ -8,6 +8,9 @@ import { Customer } from "../models/Customer";
 import { User } from "../models/User";
 import { verifyJWT, type AuthPayload } from "../middleware/auth";
 import { HttpError } from "../middleware/errorHandler";
+import { accessSummary, computeAccess } from "../services/access";
+import { AuditLog } from "../models/AuditLog";
+import { moduleSettings } from "../config/modules";
 
 export const authRouter = Router();
 
@@ -56,11 +59,23 @@ authRouter.post("/login", async (req, res, next) => {
       name: user.name,
       ...(user.customerId ? { customerId: user.customerId.toString() } : {}),
     };
-    const token = jwt.sign(payload, env.jwtSecret, { expiresIn: env.jwtExpiresIn as any });
+    // Session length: administration module setting (env JWT_EXPIRES_IN is the fallback).
+    const sessionHours = Number(moduleSettings(company, "admin").sessionHours);
+    const expiresIn = sessionHours > 0 ? `${sessionHours}h` : env.jwtExpiresIn;
+    const token = jwt.sign(payload, env.jwtSecret, { expiresIn: expiresIn as any });
+    const access = await computeAccess(user);
+    // Authorization event (§4.5.8): who opened a session and when.
+    if (moduleSettings(company, "history").logLogins !== false) {
+      await AuditLog.create({
+        companyId: user.companyId, userId: user._id, userName: user.name,
+        action: "login", entity: "access", label: user.email,
+      });
+    }
 
     res.json({
       token,
       user: { id: user._id, name: user.name, email: user.email, role: user.role },
+      access: accessSummary(access),
       ...(await sessionInfo(user)),
     });
   } catch (err) {
@@ -72,7 +87,7 @@ authRouter.get("/me", verifyJWT, async (req, res, next) => {
   try {
     const user = await User.findOne({ _id: req.auth!.sub, companyId: req.auth!.companyId }).select("-passwordHash");
     if (!user || user.active === false) throw new HttpError(401, "invalid_token", "Sesión expirada o token inválido.");
-    res.json({ user, ...(await sessionInfo(user)) });
+    res.json({ user, access: accessSummary(await computeAccess(user)), ...(await sessionInfo(user)) });
   } catch (err) {
     next(err);
   }

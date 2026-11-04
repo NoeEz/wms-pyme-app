@@ -16,7 +16,7 @@ export default function ModulesScreen({ token, modules, onModulesChange }: Props
   const [error, setError] = useState('');
 
   async function toggle(key: string) {
-    if (pendingKey) return;
+    if (pendingKey || modules.find(m => m.key === key)?.core) return;
     setError('');
     setPendingKey(key);
     const nextEnabled = modules.map(m => m.key === key ? { ...m, enabled: !m.enabled } : m);
@@ -35,10 +35,10 @@ export default function ModulesScreen({ token, modules, onModulesChange }: Props
   return (
     <View className="flex-1 bg-[#F8FAFC] px-4 py-4">
       <Text className="text-xs text-[#64748B] mb-3">
-        Activa o desactiva funciones operativas para tu empresa. Un módulo apagado desaparece de las pantallas de los operadores.
+        Solo el administrador activa módulos. Un módulo apagado desaparece de las pantallas y se bloquea en el servidor, sin borrar datos. Los módulos centrales siempre están activos; la configuración, roles y permisos se editan en el portal web.
       </Text>
 
-      {error && (
+      {!!error && (
         <View className="flex-row items-center gap-2 bg-[#FEE2E2] px-4 py-3 rounded-[10px] mb-3">
           <Icon name="warning" size={16} color="#7F1D1D" />
           <Text className="text-sm text-[#7F1D1D] flex-1">{error}</Text>
@@ -49,10 +49,12 @@ export default function ModulesScreen({ token, modules, onModulesChange }: Props
         {modules.map((m, i) => (
           <View key={m.key} className={`px-4 py-3.5 flex-row items-center gap-3 ${i > 0 ? "border-t border-[#F1F5F9]" : ""}`}>
             <View className="flex-1">
-              <Text className="text-sm font-medium text-[#0F172A]">{m.label}</Text>
+              <Text className="text-sm font-medium text-[#0F172A]">{m.label}{m.core ? "  · Central" : ""}</Text>
               <Text className="text-xs text-[#94A3B8]">{m.description}</Text>
             </View>
-            {pendingKey === m.key ? (
+            {m.core ? (
+              <Icon name="lock" size={16} color="#94A3B8" />
+            ) : pendingKey === m.key ? (
               <ActivityIndicator size="small" color="#4F46E5" />
             ) : (
               <Pressable

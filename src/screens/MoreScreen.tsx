@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { View, Text, Pressable } from "react-native";
 import { Icon, RoleBadge, Dialog } from "../components/ui";
 import type { User, Warehouse, Screen, ModuleInfo } from "../types";
-import { isModuleEnabled } from "../services/modules";
+import { can, isModuleEnabled } from "../services/modules";
 import { usePreferences, setPreference, type ScanPreferences } from "../services/preferences";
 import { scanFeedback } from "../services/feedback";
 
@@ -104,7 +104,7 @@ export default function MoreScreen({ user, warehouse, modules, unsyncedCount, on
         </View>
 
         {/* Navigation items */}
-        {user.role !== 'operator' && (
+        {historyEnabled && (
           <View className="bg-white rounded-2xl border border-[#E2E8F0] shadow-sm shadow-slate-900/5 overflow-hidden">
             <View className="px-4 py-3 border-b border-[#F1F5F9]">
               <Text className="text-xs font-semibold uppercase tracking-wide text-[#64748B]">Supervisión</Text>
@@ -123,7 +123,7 @@ export default function MoreScreen({ user, warehouse, modules, unsyncedCount, on
           </View>
         )}
 
-        {user.role === 'admin' && (
+        {can(user, 'admin.modules') && (
           <View className="bg-white rounded-2xl border border-[#E2E8F0] shadow-sm shadow-slate-900/5 overflow-hidden">
             <View className="px-4 py-3 border-b border-[#F1F5F9]">
               <Text className="text-xs font-semibold uppercase tracking-wide text-[#64748B]">Administración</Text>

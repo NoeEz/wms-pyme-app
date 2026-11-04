@@ -3,9 +3,9 @@ import { View, ActivityIndicator } from "react-native";
 import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import * as Crypto from "expo-crypto";
-import { clearStoredToken, restoreSession, rememberWarehouse } from "./services/auth";
+import { clearStoredToken, restoreSession, rememberWarehouse, refreshAccess } from "./services/auth";
 import { buildMovementPayload, postMovement, type MovementPayload } from "./services/movements";
-import { fetchModules } from "./services/modules";
+import { can, fetchModules, moduleSetting, usableModules } from "./services/modules";
 import { ApiError, isTransientError, setUnauthorizedHandler, clearCache } from "./services/api";
 import { warmOfflineCache } from "./services/products";
 import { useServerReachable, refreshConnectivity } from "./services/connectivity";
@@ -42,6 +42,9 @@ function AppInner() {
   const [warehouse, setWarehouse] = useState<Warehouse | null>(null);
   const [lastWarehouseId, setLastWarehouseId] = useState<string | undefined>();
   const [modules, setModules] = useState<ModuleInfo[]>([]);
+  // What this user can use: module on for the company AND permission granted
+  // (roles, groups, exceptions — all set by the admin). Screens get this view.
+  const usable = usableModules(modules, user);
 
   // Connectivity + offline queue (Fase 2). "Online" means the backend answers.
   const reachable = useServerReachable();
@@ -55,6 +58,7 @@ function AppInner() {
   const [moveType, setMoveType] = useState<MoveType>("entry");
   const [moveOrigin, setMoveOrigin] = useState<Location | undefined>();
   const [moveDest, setMoveDest] = useState<Location | undefined>();
+  const [moveDestWarehouse, setMoveDestWarehouse] = useState<Warehouse | undefined>();
   const [moveReference, setMoveReference] = useState<string | undefined>();
   const [moveItems, setMoveItems] = useState<MovementItem[]>([]);
 
@@ -105,6 +109,11 @@ function AppInner() {
     if (!token) { setModules([]); return; }
     if (reachable === false) return;
     fetchModules(token).then(setModules).catch(() => {});
+    // Permissions may have changed since login (the admin edits roles,
+    // groups, exceptions or modules from the portal).
+    if (user) refreshAccess(token, user).then(setUser).catch(() => {});
+    // Only on session start / reconnect, not on every user object change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, reachable]);
 
   // Keep the device's catalog/locations copy fresh while online (offline scanning).
@@ -131,13 +140,15 @@ function AppInner() {
     setMoveItems([]);
     setMoveOrigin(undefined);
     setMoveDest(undefined);
+    setMoveDestWarehouse(undefined);
     setMoveReference(undefined);
     setScreen("move-config");
   }
 
-  function handleMoveConfigStart(origin?: Location, dest?: Location, ref?: string) {
+  function handleMoveConfigStart(origin?: Location, dest?: Location, ref?: string, destWarehouse?: Warehouse) {
     setMoveOrigin(origin);
     setMoveDest(dest);
+    setMoveDestWarehouse(destWarehouse);
     setMoveReference(ref);
     setScreen("scan-handheld");
   }
@@ -179,10 +190,30 @@ function AppInner() {
   // Online: confirm directly so business-rule errors (stock insuficiente,
   // serie duplicada…) show up on the review screen. No signal or server down:
   // persist in the offline queue — the same clientId makes the later replay safe.
+  /**
+   * Module settings the admin configured (max quantity per line, lot
+   * required). The server enforces them too; checking here gives the
+   * operator the message before sending — and before an offline movement
+   * would end up "Rechazado" in Pendientes.
+   */
+  function checkModuleRules() {
+    const moduleKey = { entry: "inbound", exit: "outbound", transfer: "transfer" }[moveType];
+    const maxPerLine = Number(moduleSetting(modules, moduleKey, "maxQuantityPerLine")) || 0;
+    if (maxPerLine > 0 && moveItems.some(i => !i.product.serialized && i.quantity > maxPerLine)) {
+      throw new ApiError(422, "quantity_limit", `La cantidad por línea no puede pasar de ${maxPerLine}. Si es correcta, divídela o pide a un administrador que ajuste el límite.`);
+    }
+    if (moveType === "entry" && moduleSetting(modules, "inbound", "requireLot") === true
+      && moveItems.some(i => i.product.lotTracked && !i.lot?.trim())) {
+      throw new ApiError(422, "lot_required", "Tu empresa exige el número de lote en productos con seguimiento por lote.");
+    }
+  }
+
   async function handleConfirmMove() {
     if (!token || !user || !warehouse) return;
+    checkModuleRules();
     const payload = buildMovementPayload({
       warehouseId: warehouse.id,
+      destinationWarehouseId: moveDestWarehouse?.id,
       type: moveType,
       reference: moveReference,
       origin: moveOrigin,
@@ -259,6 +290,8 @@ function AppInner() {
           onClose={() => setScreen("scan-handheld")}
           onManual={() => setScreen("manual-capture")}
           onHandheld={() => setScreen("scan-handheld")}
+          qrOnly={moduleSetting(modules, "camera_scan", "qrOnly") === true}
+          canManual={can(user, "capture.manual")}
         />
       </View>
     );
@@ -305,7 +338,7 @@ function AppInner() {
             user={user}
             warehouse={warehouse}
             connection={connection}
-            modules={modules}
+            modules={usable}
             onNavigate={s => {
               if (s === "move-select") setScreen("move-select");
               else setScreen(s);
@@ -315,14 +348,16 @@ function AppInner() {
         )}
 
         {screen === "move-select" && (
-          <MoveSelectScreen modules={modules} onSelect={handleStartMove} />
+          <MoveSelectScreen modules={usable} onSelect={handleStartMove} />
         )}
 
         {screen === "move-config" && token && warehouse && (
           <MoveConfigScreen
             token={token}
-            warehouseId={warehouse.id}
+            warehouse={warehouse}
             moveType={moveType}
+            modules={modules}
+            allowedWarehouseIds={user?.warehouseIds ?? null}
             onStart={handleMoveConfigStart}
           />
         )}
@@ -332,7 +367,8 @@ function AppInner() {
             token={token}
             moveType={moveType}
             items={moveItems}
-            modules={modules}
+            modules={usable}
+            canManual={can(user, "capture.manual")}
             onAddItem={handleAddItem}
             onReview={() => setScreen("movement-draft")}
             onUseCamera={() => setScreen("scan-camera")}
@@ -368,6 +404,7 @@ function AppInner() {
             warehouse={warehouse}
             origin={moveOrigin}
             destination={moveDest}
+            destinationWarehouse={moveDestWarehouse && moveDestWarehouse.id !== warehouse.id ? moveDestWarehouse : undefined}
             reference={moveReference}
             user={user.name}
             connection={connection}
@@ -390,7 +427,7 @@ function AppInner() {
         {screen === "inventory" && token && (
           <InventoryScreen
             token={token}
-            modules={modules}
+            modules={usable}
             onViewDetail={p => { setSelectedProduct(p); setScreen("inventory-detail"); }}
             onNavigate={setScreen}
           />
@@ -409,14 +446,14 @@ function AppInner() {
         )}
 
         {screen === "history" && token && (
-          <HistoryScreen token={token} modules={modules} onBack={() => setScreen("more")} />
+          <HistoryScreen token={token} modules={usable} onBack={() => setScreen("more")} />
         )}
 
         {screen === "more" && user && warehouse && (
           <MoreScreen
             user={user}
             warehouse={warehouse}
-            modules={modules}
+            modules={usable}
             unsyncedCount={unsyncedCount}
             onNavigate={setScreen}
             onLogout={handleLogout}
@@ -424,7 +461,7 @@ function AppInner() {
           />
         )}
 
-        {screen === "modules" && token && (
+        {screen === "modules" && token && can(user, "admin.modules") && (
           <ModulesScreen token={token} modules={modules} onModulesChange={setModules} />
         )}
 

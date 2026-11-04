@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { lastCompany, useAuth } from "../lib/auth";
 import { errorMessage } from "../lib/api";
-import { Button, Field, Input } from "../components/ui";
+import { Button, Field, Input, PasswordInput } from "../components/ui";
 import { Icon } from "../components/Icon";
 
 export default function LoginPage() {
@@ -54,7 +54,7 @@ export default function LoginPage() {
               <Input type="email" value={email} onChange={e => { setEmail(e.target.value); setError(""); }} autoComplete="username" placeholder="usuario@empresa.mx" autoFocus={!!company} />
             </Field>
             <Field label="Contraseña">
-              <Input type="password" value={password} onChange={e => { setPassword(e.target.value); setError(""); }} autoComplete="current-password" />
+              <PasswordInput value={password} onChange={e => { setPassword(e.target.value); setError(""); }} autoComplete="current-password" />
             </Field>
             {error && (
               <div role="alert" className="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm leading-relaxed text-red-800">

@@ -17,6 +17,8 @@ import { auditRouter } from "./routes/audit.routes";
 import { countsRouter } from "./routes/counts.routes";
 import { dashboardRouter } from "./routes/dashboard.routes";
 import { reportsRouter } from "./routes/reports.routes";
+import { rolesRouter } from "./routes/roles.routes";
+import { groupsRouter } from "./routes/groups.routes";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
 import { env } from "./config/env";
 
@@ -47,6 +49,8 @@ export function createApp() {
   app.use("/api/counts", countsRouter);
   app.use("/api/dashboard", dashboardRouter);
   app.use("/api/reports", reportsRouter);
+  app.use("/api/roles", rolesRouter);
+  app.use("/api/groups", groupsRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

@@ -1,9 +1,15 @@
+import { Platform } from "react-native";
 import { readJSON, writeJSON, removeKeysWithPrefix } from "./storage";
 
 // Base URL of the real WMS-PyME backend (backend/). Configure it per machine
 // with EXPO_PUBLIC_API_URL, pointing at your computer's LAN IP so a phone on
 // Expo Go can reach it — e.g. EXPO_PUBLIC_API_URL=http://192.168.1.50:4000/api.
-const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://10.8.4.247:4000/api";
+// Without it, the web build (Expo web in a browser) talks to the API on the
+// same machine that serves the page.
+const WEB_DEFAULT = Platform.OS === "web" && typeof window !== "undefined"
+  ? `http://${window.location.hostname}:4000/api`
+  : undefined;
+const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? WEB_DEFAULT ?? "http://10.8.4.247:4000/api";
 
 /** Unauthenticated liveness endpoint (served outside /api) — used to tell "no signal" from "server unreachable". */
 export const HEALTH_URL = `${BASE_URL.replace(/\/api\/?$/, "")}/health`;

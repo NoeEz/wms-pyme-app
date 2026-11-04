@@ -16,11 +16,13 @@ interface Props {
   onReview: () => void;
   onUseCamera: () => void;
   onManual: () => void;
+  /** Permission "capture.manual": typing a product instead of scanning it. */
+  canManual?: boolean;
 }
 
 type LastRead = { product: string; sku: string; lot?: string; serial?: string; qty: number; state: ScanState };
 
-export default function ScanHandheldScreen({ token, moveType, items, modules, onAddItem, onReview, onUseCamera, onManual }: Props) {
+export default function ScanHandheldScreen({ token, moveType, items, modules, canManual = true, onAddItem, onReview, onUseCamera, onManual }: Props) {
   const cameraEnabled = isModuleEnabled(modules, 'camera_scan');
   const [code, setCode] = useState('');
   const [scanState, setScanState] = useState<ScanState>('idle');
@@ -187,8 +189,8 @@ export default function ScanHandheldScreen({ token, moveType, items, modules, on
               <View className="flex-1 min-w-0">
                 <Text className="text-sm font-medium text-[#0F172A]" numberOfLines={1}>{lastRead.product}</Text>
                 <Text className="text-xs font-mono text-[#64748B]">SKU: {lastRead.sku}</Text>
-                {lastRead.lot && <Text className="text-xs text-[#64748B]">Lote: {lastRead.lot}</Text>}
-                {lastRead.serial && <Text className="text-xs text-[#64748B]">Serie: {lastRead.serial}</Text>}
+                {!!lastRead.lot && <Text className="text-xs text-[#64748B]">Lote: {lastRead.lot}</Text>}
+                {!!lastRead.serial && <Text className="text-xs text-[#64748B]">Serie: {lastRead.serial}</Text>}
               </View>
               {lastRead.state === 'added' && (
                 <Text className="text-sm font-bold text-[#059669]">+1</Text>
@@ -238,12 +240,14 @@ export default function ScanHandheldScreen({ token, moveType, items, modules, on
               >
                 <Text className="text-xs font-medium text-[#78350F] text-center">Reintentar</Text>
               </Pressable>
-              <Pressable
-                onPress={onManual}
-                className="flex-1 bg-[#4F46E5] px-3 py-2 rounded-[8px]"
-              >
-                <Text className="text-xs font-medium text-white text-center">Captura manual</Text>
-              </Pressable>
+              {canManual && (
+                <Pressable
+                  onPress={onManual}
+                  className="flex-1 bg-[#4F46E5] px-3 py-2 rounded-[8px]"
+                >
+                  <Text className="text-xs font-medium text-white text-center">Captura manual</Text>
+                </Pressable>
+              )}
             </View>
           </View>
         )}
@@ -264,10 +268,11 @@ export default function ScanHandheldScreen({ token, moveType, items, modules, on
           </Pressable>
           <Pressable
             onPress={onManual}
-            className="flex-1 flex-row items-center justify-center gap-1.5 border border-[#CBD5E1] py-2.5 rounded-[10px] active:bg-[#F1F5F9]"
+            disabled={!canManual}
+            className={`flex-1 flex-row items-center justify-center gap-1.5 border border-[#CBD5E1] py-2.5 rounded-[10px] active:bg-[#F1F5F9] ${!canManual ? 'opacity-40' : ''}`}
           >
             <Icon name="edit" size={16} color="#475569" />
-            <Text className="text-[#475569] text-xs font-medium">Captura manual</Text>
+            <Text className="text-[#475569] text-xs font-medium">{canManual ? 'Captura manual' : 'Captura manual no permitida'}</Text>
           </Pressable>
         </View>
         <Button

@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { verifyJWT, adminOnly, staffOnly } from "../middleware/auth";
+import { authenticate, requirePermission, staffOnly } from "../middleware/auth";
 import { HttpError } from "../middleware/errorHandler";
 import { Customer } from "../models/Customer";
 import { applyPatch, audit, updateAction } from "../services/audit";
@@ -8,7 +8,7 @@ import { applyPatch, audit, updateAction } from "../services/audit";
 // 3PL customers: third parties whose merchandise the company stores.
 export const customersRouter = Router();
 
-customersRouter.use(verifyJWT, staffOnly);
+customersRouter.use(authenticate, staffOnly);
 
 customersRouter.get("/", async (req, res, next) => {
   try {
@@ -25,7 +25,7 @@ const fields = {
   contactEmail: z.string().trim().email().nullable(),
 };
 
-customersRouter.post("/", adminOnly, async (req, res, next) => {
+customersRouter.post("/", requirePermission("admin.customers"), async (req, res, next) => {
   try {
     const body = z.object({ ...fields, contactEmail: fields.contactEmail.optional() }).parse(req.body);
     const customer = await Customer.create({ ...body, contactEmail: body.contactEmail ?? undefined, companyId: req.auth!.companyId });
@@ -36,7 +36,7 @@ customersRouter.post("/", adminOnly, async (req, res, next) => {
   }
 });
 
-customersRouter.patch("/:id", adminOnly, async (req, res, next) => {
+customersRouter.patch("/:id", requirePermission("admin.customers"), async (req, res, next) => {
   try {
     const body = z.object({ ...fields, active: z.boolean() }).partial().parse(req.body);
     const customer = await Customer.findOne({ _id: req.params.id, companyId: req.auth!.companyId });

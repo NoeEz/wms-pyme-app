@@ -27,6 +27,8 @@ export default function LoginScreen({ onLogin }: Props) {
       const { user, token } = await login(loginCompany.trim(), loginEmail.trim(), loginPassword);
       onLogin(user, token);
     } catch (err) {
+      // Log unexpected (non-API) failures so they can be diagnosed.
+      if (!(err instanceof ApiError)) console.error("[login]", err);
       setError(err instanceof ApiError ? err.message : 'No se pudo iniciar sesión. Intenta de nuevo.');
     } finally {
       setLoading(false);
@@ -83,7 +85,7 @@ export default function LoginScreen({ onLogin }: Props) {
             type="password"
           />
 
-          {error && (
+          {!!error && (
             <View className="flex-row items-start gap-2 bg-[#FEE2E2] px-4 py-3 rounded-xl">
               <Text className="text-[#7F1D1D] text-sm mt-0.5">⚠</Text>
               <Text className="text-[#7F1D1D] text-sm flex-1">{error}</Text>

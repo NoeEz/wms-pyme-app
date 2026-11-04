@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api, errorMessage, qs } from "../lib/api";
 import { useSession } from "../lib/auth";
-import { useWarehouseFilter, useWarehouses } from "../lib/data";
+import { useModuleSetting, useWarehouseFilter, useWarehouses } from "../lib/data";
 import { exportName } from "../lib/export";
 import { fmtDate, fmtDateTime, fmtMoney, fmtNumber, MOVEMENT_LABEL, STATUS_LABEL, TRACKING_LABEL } from "../lib/format";
 import type { Balance, Movement, Product, StockRow, StockStatus } from "../lib/types";
@@ -13,7 +13,6 @@ import { ExportButtons } from "../components/ExportButtons";
 const STATUS_BADGE: Record<StockStatus, "danger" | "warning" | "neutral" | "success"> = {
   stockout: "danger", low: "warning", slow: "neutral", ok: "success",
 };
-const SLOW_DAYS = 30;
 
 export function StatusBadge({ status }: { status: StockStatus }) {
   return <Badge variant={STATUS_BADGE[status]}>{STATUS_LABEL[status]}</Badge>;
@@ -28,6 +27,7 @@ export default function InventoryPage() {
   const [status, setStatus] = useState<StockStatus | "">("");
   const [customer, setCustomer] = useState("");
   const [selected, setSelected] = useState<StockRow | null>(null);
+  const SLOW_DAYS = Number(useModuleSetting("reports", "slowMovingDays")) || 30;
 
   const query = useQuery({
     queryKey: ["dashboard", "stock", { warehouseId, days: SLOW_DAYS }],

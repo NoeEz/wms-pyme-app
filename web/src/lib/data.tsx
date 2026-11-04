@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api, qs } from "./api";
-import type { Balance, Customer, Location, Product, Warehouse } from "./types";
+import type { Balance, Customer, Location, ModuleInfo, Product, Warehouse } from "./types";
 
 // Catalog queries shared by several pages, plus the portal-wide warehouse
 // filter ("" = all warehouses) shown in the top bar.
@@ -54,6 +54,20 @@ export function useCustomers(enabled = true) {
     staleTime: 60_000,
     enabled,
   });
+}
+
+/** The company's modules with their settings (everybody may read them). */
+export function useModules() {
+  return useQuery({
+    queryKey: ["modules"],
+    queryFn: () => api.get<{ modules: ModuleInfo[] }>("/modules").then(r => r.modules),
+    staleTime: 60_000,
+  });
+}
+
+/** One module setting; undefined while loading. */
+export function useModuleSetting(module: string, key: string): boolean | number | undefined {
+  return useModules().data?.find(m => m.key === module)?.settings[key];
 }
 
 const WAREHOUSE_KEY = "wms_portal_warehouse";
