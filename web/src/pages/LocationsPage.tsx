@@ -42,18 +42,18 @@ export default function LocationsPage() {
         description="Zona / pasillo / rack / posición de cada almacén. El código es lo que se imprime en la etiqueta."
         actions={<Button icon="plus" disabled={!warehouseId} onClick={() => setEditing("new")}>Nueva ubicación</Button>}
       />
-      <Card padded={false}>
-        <div className="flex flex-wrap items-center gap-4 border-b border-slate-100 p-4">
-          <Select value={warehouseId} onChange={e => setWarehouseId(e.target.value)} className="w-60" aria-label="Almacén">
+      <Card padded={false} className="overflow-hidden [&_th]:whitespace-nowrap [&_td.tabular]:whitespace-nowrap [&_td:first-child]:font-medium">
+        <div className="flex min-w-0 flex-col items-stretch gap-3 border-b border-slate-200 bg-slate-50/60 p-4 sm:flex-row sm:flex-wrap sm:items-center">
+          <Select value={warehouseId} onChange={e => setWarehouseId(e.target.value)} className="w-full sm:w-60" aria-label="Almacén">
             {warehouses?.map(w => <option key={w._id} value={w._id}>{w.name}</option>)}
           </Select>
           <div className="flex rounded-xl border border-slate-300 bg-white p-0.5" role="group" aria-label="Vista">
             {([["map", "Plano"], ["list", "Lista"]] as const).map(([key, label]) => (
               <button key={key} onClick={() => setView(key)} aria-pressed={view === key}
-                className={`rounded-lg px-3 py-1.5 text-xs font-medium ${view === key ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"}`}>{label}</button>
+                className={`min-h-9 rounded-lg px-3 py-2 text-xs font-semibold ${view === key ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}>{label}</button>
             ))}
           </div>
-          <SearchInput value={search} onChange={setSearch} placeholder="Buscar código, zona, pasillo…" className="min-w-60 flex-1" />
+          <SearchInput value={search} onChange={setSearch} placeholder="Buscar código, zona, pasillo…" className="w-full min-w-0 sm:min-w-60 sm:flex-1" />
           <label className="flex items-center gap-2 text-sm text-slate-600"><Toggle checked={showInactive} onChange={setShowInactive} label="Mostrar inactivas" /> Mostrar inactivas</label>
         </div>
         {locations.isPending ? <Loading /> : locations.isError ? <div className="p-4"><ErrorBox message={errorMessage(locations.error)} /></div> : !filtered.length ? (
@@ -67,7 +67,7 @@ export default function LocationsPage() {
             <thead><tr><th className={th}>Código</th><th className={th}>Zona</th><th className={th}>Pasillo</th><th className={th}>Rack</th><th className={th}>Posición</th><th className={th}>Estado</th></tr></thead>
             <tbody>
               {filtered.map(l => (
-                <tr key={l._id} onClick={() => setEditing(l)} className="cursor-pointer hover:bg-slate-50">
+                <tr key={l._id} onClick={() => setEditing(l)} className="cursor-pointer">
                   <td className={`${td} font-mono text-xs font-medium`}>{l.code}</td>
                   <td className={td}>{l.zone}</td><td className={td}>{l.aisle}</td><td className={td}>{l.rack}</td><td className={td}>{l.position}</td>
                   <td className={td}>{l.active === false ? <Badge>Inactiva</Badge> : <Badge variant="success">Activa</Badge>}</td>
@@ -103,7 +103,7 @@ function LocationForm({ warehouseId, location, onClose }: { warehouseId: string;
         body: { zone: form.zone, aisle: form.aisle, rack: form.rack, position: form.position, code: form.code, ...(location ? { active: form.active } : { warehouseId }) },
       })}>Guardar</Button></>}
     >
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid min-w-0 gap-4 sm:grid-cols-2 [&>label]:min-w-0">
         <Field label="Zona"><Input value={form.zone} onChange={e => set({ zone: e.target.value })} placeholder="Zona A" autoFocus={!location} /></Field>
         <Field label="Pasillo"><Input value={form.aisle} onChange={e => set({ aisle: e.target.value })} placeholder="Pasillo 03" /></Field>
         <Field label="Rack"><Input value={form.rack} onChange={e => set({ rack: e.target.value })} placeholder="Rack 02" /></Field>

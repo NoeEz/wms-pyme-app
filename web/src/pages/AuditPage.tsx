@@ -47,8 +47,8 @@ export default function AuditPage() {
     <>
       <PageHeader title="Bitácora" description="Quién cambió qué y cuándo en el catálogo, usuarios y configuración. Los movimientos de stock tienen su propio historial." />
       <Card padded={false}>
-        <div className="border-b border-slate-100 p-4">
-          <Select value={entity} onChange={e => setEntity(e.target.value)} className="w-60" aria-label="Tipo de registro">
+        <div className="border-b border-slate-200 bg-slate-50/60 p-4">
+          <Select value={entity} onChange={e => setEntity(e.target.value)} className="w-full sm:w-60" aria-label="Tipo de registro">
             <option value="">Todo</option>
             {Object.entries(ENTITY_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </Select>
@@ -58,17 +58,17 @@ export default function AuditPage() {
         ) : (
           <ol className="divide-y divide-slate-100">
             {entries.map(e => (
-              <li key={e._id} className="flex flex-col gap-1 px-5 py-3 sm:flex-row sm:gap-4">
+              <li key={e._id} className="flex min-w-0 flex-col gap-2 px-4 py-4 sm:flex-row sm:gap-4 sm:px-5">
                 <div className="w-44 shrink-0 text-xs text-slate-500">{fmtDateTime(e.createdAt)}</div>
                 <div className="min-w-0 flex-1">
                   <p className="flex flex-wrap items-center gap-2 text-sm">
                     <Badge variant={ACTION[e.action].variant}>{ACTION[e.action].label}</Badge>
                     <span className="text-slate-500">{ENTITY_LABEL[e.entity] ?? e.entity}</span>
-                    {e.label && <span className="font-mono text-xs font-medium text-slate-800">{e.label}</span>}
+                    {e.label && <span className="break-all font-mono text-xs font-semibold text-slate-800">{e.label}</span>}
                     <span className="text-slate-400">por</span> <span className="font-medium text-slate-700">{e.userName}</span>
                   </p>
                   {e.changes.length > 0 && (
-                    <ul className="mt-1 flex flex-col gap-0.5 text-xs text-slate-600">
+                    <ul className="mt-3 flex flex-col gap-2 break-words rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs leading-relaxed text-slate-600">
                       {e.changes.map((c, i) => (
                         <li key={i}>
                           <span className="text-slate-500">{e.entity === "count" ? c.field : FIELD_LABEL[c.field] ?? c.field}:</span>{" "}

@@ -23,7 +23,7 @@ export default function UsersPage() {
   return (
     <>
       <PageHeader title="Usuarios" description={`Cuentas de ${session.company.name}. Inician sesión con el código de empresa «${session.company.slug}».`} actions={<Button icon="plus" onClick={() => setEditing("new")}>Nuevo usuario</Button>} />
-      <Card padded={false}>
+      <Card padded={false} className="overflow-hidden [&_th]:whitespace-nowrap [&_td.tabular]:whitespace-nowrap [&_td:first-child]:font-medium">
         {users.isPending ? <Loading /> : users.isError ? <div className="p-4"><ErrorBox message={errorMessage(users.error)} /></div> : !users.data.length ? (
           <EmptyState icon="users" title="Sin usuarios" />
         ) : (
@@ -31,11 +31,11 @@ export default function UsersPage() {
             <thead><tr><th className={th}>Nombre</th><th className={th}>Correo</th><th className={th}>Rol</th><th className={th}>Cliente 3PL</th><th className={th}>Estado</th></tr></thead>
             <tbody>
               {users.data.map(u => (
-                <tr key={u._id} onClick={() => setEditing(u)} className="cursor-pointer hover:bg-slate-50">
-                  <td className={`${td} font-medium`}>{u.name}{u._id === session.user.id && <span className="ml-2 text-xs text-slate-400">(tú)</span>}</td>
+                <tr key={u._id} onClick={() => setEditing(u)} className="cursor-pointer">
+                  <td className={`${td} font-medium`}>{u.name}{u._id === session.user.id && <span className="ml-2 text-xs text-slate-500">(tú)</span>}</td>
                   <td className={td}>{u.email}</td>
                   <td className={td}><Badge variant={u.role === "admin" ? "info" : u.role === "client" ? "warning" : "neutral"}>{ROLE_LABEL[u.role]}</Badge></td>
-                  <td className={td}>{u.customerId ? `${u.customerId.code} · ${u.customerId.name}` : <span className="text-slate-400">—</span>}</td>
+                  <td className={td}>{u.customerId ? `${u.customerId.code} · ${u.customerId.name}` : <span className="text-slate-500">—</span>}</td>
                   <td className={td}>{u.active === false ? <Badge>Inactivo</Badge> : <Badge variant="success">Activo</Badge>}</td>
                 </tr>
               ))}
@@ -72,7 +72,7 @@ function UserForm({ user, isSelf, onClose }: { user: User | null; isSelf: boolea
         },
       })}>Guardar</Button></>}
     >
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid min-w-0 gap-4 sm:grid-cols-2 [&>label]:min-w-0">
         <Field label="Nombre" className="sm:col-span-2"><Input value={form.name} onChange={e => set({ name: e.target.value })} autoFocus={!user} /></Field>
         <Field label="Correo" className="sm:col-span-2"><Input type="email" value={form.email} onChange={e => set({ email: e.target.value })} autoComplete="off" /></Field>
         <Field label="Rol" hint={ROLE_HINT[form.role]} className="sm:col-span-2">
