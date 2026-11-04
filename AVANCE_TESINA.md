@@ -12,7 +12,7 @@ Base para la exposición del 3 de noviembre de 2026. Sigue el orden de la rúbri
 | Criterio | Peso | Estado | Sección |
 |---|---:|---|---|
 | Avances respecto al MVP | 20% | ✅ Ligado a sprints, épicas y objetivos de la tesina | 2 y 3 |
-| Pipeline en GitHub Actions | 15% | 🟡 Workflow listo y probado localmente; falta correrlo en GitHub | 8 |
+| Pipeline en GitHub Actions | 15% | ✅ Los 7 jobs pasan en GitHub | 8 |
 | Servicios web | 10% | ✅ | 4 |
 | Bases de datos | 10% | ✅ | 5 |
 | Módulos de la app móvil | 10% | ✅ | 6 |
@@ -299,7 +299,7 @@ Decisiones técnicas:
 - **Acciones fijadas por commit:** evita que un cambio de etiqueta altere el pipeline.
 - **`JWT_SECRET` aleatorio en cada corrida:** el pipeline no necesita secretos guardados.
 
-**Falta:** subir el workflow a GitHub y mostrar una corrida real.
+**Resultado en GitHub:** ✅ los 7 jobs pasaron en la [corrida del PR #1](https://github.com/NoeEz/wms-pyme-app/actions/runs/41838943659), con el evento `pull_request`. Son 5 jobs de definición; el de dependencias corre uno por paquete.
 
 ## 9. Guion de la muestra física
 
@@ -323,5 +323,5 @@ Los usuarios demo están en `backend/README.md`.
 | SAST y validación del workflow | ✅ Semgrep sin hallazgos; `actionlint` sin errores |
 | Builds en contenedor Linux | ✅ App, API y portal con `npm ci` en Node 24 |
 | App en teléfono real | ✅ Reportado por el equipo; no repetido en esta revisión |
-| Corrida en GitHub Actions | ⚠️ Pendiente: el workflow todavía no está en GitHub |
+| Corrida en GitHub Actions | ✅ 7 de 7 jobs en verde en el PR #1 |
 | Las 38 historias de Jira | ⚠️ No disponibles; la tesina solo trae los totales |
