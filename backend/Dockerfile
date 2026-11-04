@@ -9,4 +9,5 @@ COPY src ./src
 RUN npm run build
 
 EXPOSE 4000
+USER node
 CMD ["node", "dist/index.js"]

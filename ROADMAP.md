@@ -2,7 +2,7 @@
 
 Plan de escalación del producto, desde el MVP actual hasta un WMS multi-empresa listo para producción.
 
-> **Origen de este documento.** Se armó a partir del estado real del código (noviembre 2026) y de las referencias que el propio código hace a la tesina (`Tesina_WMS_PyME.docx`) y al brief (`BRIEF_IA_MVP_WMS_PYME.md`). Esos dos documentos **no están en el repo**; cuando se agreguen, alinear las fases de abajo con las épicas (`EPIC-n`) y objetivos específicos (`OEn`) oficiales. Hoy solo está confirmada la correspondencia **EPIC-6 = Módulos Personalizables = OE5**.
+> **Origen de este documento.** Se armó a partir del estado real del código (noviembre 2026) y de las referencias que el propio código hace a la tesina (`Tesina_WMS_PyME.docx`) y al brief (`BRIEF_IA_MVP_WMS_PYME.md`). Esos dos documentos **no están en el repo**. La correspondencia con los sprints, épicas (`EPIC-n`) y objetivos específicos (`OEn`) oficiales está en `AVANCE_TESINA.md`.
 
 ## Resumen
 
@@ -117,7 +117,7 @@ Decisiones tomadas (nov 2026): portal en `web/` (Vite + React + TS + Tailwind) p
 - [ ] Alta de nuevas empresas (onboarding) y su usuario administrador inicial
 - [ ] Endurecimiento de seguridad: límite de intentos de login, expiración/renovación de token, recuperación de contraseña
 - [ ] Monitoreo de la API (salud, errores, tiempos de respuesta) y logs centralizados
-- [ ] CI: lint, typecheck, pruebas y build en cada cambio
+- [x] CI: typecheck, pruebas, build, SCA y SAST en cada cambio (`.github/workflows/ci.yml`)
 
 **Entregable:** varias PyMEs usando el sistema en producción.
 
