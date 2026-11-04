@@ -1,15 +1,17 @@
 import { Router } from "express";
 import { z } from "zod";
-import { verifyJWT, managersOnly } from "../middleware/auth";
-import { AuditLog, AUDIT_ENTITIES } from "../models/AuditLog";
+import { authenticate, requirePermission } from "../middleware/auth";
+import { AuditLog, AUDIT_ACTIONS, AUDIT_ENTITIES } from "../models/AuditLog";
 
 export const auditRouter = Router();
 
-auditRouter.use(verifyJWT, managersOnly);
+auditRouter.use(authenticate, requirePermission("audit.view"));
 
 const querySchema = z.object({
   entity: z.enum(AUDIT_ENTITIES).optional(),
   entityId: z.string().optional(),
+  action: z.enum(AUDIT_ACTIONS).optional(),
+  userId: z.string().optional(),
   from: z.coerce.date().optional(),
   to: z.coerce.date().optional(),
   // Pagination: pass the createdAt of the last entry received.
@@ -23,6 +25,8 @@ auditRouter.get("/", async (req, res, next) => {
     const filter: Record<string, unknown> = { companyId: req.auth!.companyId };
     if (q.entity) filter.entity = q.entity;
     if (q.entityId) filter.entityId = q.entityId;
+    if (q.action) filter.action = q.action;
+    if (q.userId) filter.userId = q.userId;
     const createdAt: Record<string, Date> = {};
     if (q.from) createdAt.$gte = q.from;
     if (q.to) createdAt.$lte = q.to;

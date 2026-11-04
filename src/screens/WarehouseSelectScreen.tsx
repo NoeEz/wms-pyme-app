@@ -48,7 +48,7 @@ export default function WarehouseSelectScreen({ token, lastWarehouseId, onSelect
           </View>
         )}
 
-        {!loading && error && (
+        {!loading && !!error && (
           <View className="items-center py-12 px-4 gap-3">
             <Icon name="wifi_off" size={28} color="#DC2626" />
             <Text className="text-sm text-[#7F1D1D] text-center">{error}</Text>

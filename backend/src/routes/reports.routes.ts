@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { verifyJWT } from "../middleware/auth";
+import { authenticate, requirePermission } from "../middleware/auth";
 import { HttpError } from "../middleware/errorHandler";
 import { MOVEMENT_TYPES } from "../models/Movement";
 import { Warehouse } from "../models/Warehouse";
@@ -12,7 +12,7 @@ import { parsePeriod } from "../services/period";
 // which staff member made a movement.
 export const reportsRouter = Router();
 
-reportsRouter.use(verifyJWT);
+reportsRouter.use(authenticate, requirePermission("reports.view"));
 
 const MAX_MOVEMENTS = 5000;
 
@@ -32,7 +32,7 @@ reportsRouter.get("/kardex", async (req, res, next) => {
   try {
     const { productId, warehouseId } = z.object({ productId: z.string(), warehouseId: z.string().optional() }).parse(req.query);
     const period = parsePeriod(req.query, { defaultDays: 30, maxDays: 731 });
-    const scope = await buildScope(req.auth!, warehouseId);
+    const scope = await buildScope(req, warehouseId);
     const product = scope.products.get(productId);
     if (!product) throw new HttpError(404, "not_found", "Producto no encontrado.");
 
@@ -92,7 +92,7 @@ reportsRouter.get("/movements", async (req, res, next) => {
       type: z.enum(MOVEMENT_TYPES).optional(),
     }).parse(req.query);
     const period = parsePeriod(req.query, { defaultDays: 30, maxDays: 366 });
-    const scope = await buildScope(req.auth!, warehouseId);
+    const scope = await buildScope(req, warehouseId);
     const movements = await scopedMovements(scope, period, type ? { type } : {});
     if (movements.length > MAX_MOVEMENTS) {
       throw new HttpError(422, "too_many_rows", `El periodo tiene más de ${MAX_MOVEMENTS} movimientos. Acórtalo o filtra por almacén o tipo.`);
@@ -130,7 +130,7 @@ reportsRouter.get("/movements", async (req, res, next) => {
 reportsRouter.get("/stock-by-location", async (req, res, next) => {
   try {
     const { warehouseId } = z.object({ warehouseId: z.string().optional() }).parse(req.query);
-    const scope = await buildScope(req.auth!, warehouseId);
+    const scope = await buildScope(req, warehouseId);
     const [balances, warehouses] = await Promise.all([
       scopedBalances(scope),
       Warehouse.find({ companyId: scope.companyId }).lean(),

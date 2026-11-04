@@ -171,7 +171,8 @@ test("serial numbers cannot repeat within or across movements", async () => {
 });
 
 test("a disabled module blocks its movement type", async () => {
-  await call("PATCH", "/modules", { enabledModules: ["inbound", "transfer", "camera_scan", "inventory", "history"] });
+  const all = (await call("GET", "/modules")).data.modules.map((m: any) => m.key) as string[];
+  await call("PATCH", "/modules", { enabledModules: all.filter(k => k !== "outbound") });
   try {
     const res = await call("POST", "/movements", {
       warehouseId, type: "outbound",
@@ -180,6 +181,6 @@ test("a disabled module blocks its movement type", async () => {
     assert.equal(res.status, 403);
     assert.equal(res.data.error, "module_disabled");
   } finally {
-    await call("PATCH", "/modules", { enabledModules: ["inbound", "outbound", "transfer", "camera_scan", "inventory", "history"] });
+    await call("PATCH", "/modules", { enabledModules: all });
   }
 });

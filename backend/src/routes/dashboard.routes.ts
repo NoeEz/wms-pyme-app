@@ -1,12 +1,13 @@
 import { Router } from "express";
 import { z } from "zod";
-import { verifyJWT } from "../middleware/auth";
+import { authenticate, requirePermission } from "../middleware/auth";
 import { InventoryCount } from "../models/InventoryCount";
 import { Movement, MOVEMENT_TYPES, type MovementType } from "../models/Movement";
 import {
-  buildScope, lineEffects, onHandByProduct, percentile, round, scopedBalances, scopedMovements, stockStatus,
+  buildScope, lineEffects, movementWarehouseMatch, onHandByProduct, percentile, round, scopedBalances, scopedMovements, stockStatus,
 } from "../services/analytics";
 import { daysOf, localDay, parsePeriod } from "../services/period";
+import { moduleSettings } from "../config/modules";
 
 // Monitoring KPIs for the web portal. Every role may read them; a 3PL client
 // gets them computed over its own products only, without per-operator data.
@@ -14,7 +15,7 @@ import { daysOf, localDay, parsePeriod } from "../services/period";
 // location, throughput) and SCOR (days of supply, turnover).
 export const dashboardRouter = Router();
 
-dashboardRouter.use(verifyJWT);
+dashboardRouter.use(authenticate, requirePermission("reports.view"));
 
 const DAY_MS = 86_400_000;
 // A movement synced more than this after capture counts as "late" (offline).
@@ -23,8 +24,8 @@ const LATE_SYNC_SECONDS = 15 * 60;
 dashboardRouter.get("/overview", async (req, res, next) => {
   try {
     const { warehouseId } = z.object({ warehouseId: z.string().optional() }).parse(req.query);
-    const period = parsePeriod(req.query);
-    const scope = await buildScope(req.auth!, warehouseId);
+    const period = parsePeriod(req.query, { defaultDays: Number(moduleSettings(req.access!.company as any, "reports").defaultPeriodDays) || 30 });
+    const scope = await buildScope(req, warehouseId);
     const [balances, movements] = await Promise.all([scopedBalances(scope), scopedMovements(scope, period)]);
 
     // ── Stock now ──
@@ -94,7 +95,8 @@ dashboardRouter.get("/overview", async (req, res, next) => {
     let accuracy = null;
     if (!scope.isClient) {
       const countFilter: Record<string, unknown> = { companyId: scope.companyId, createdAt: { $gte: period.from, $lte: period.to } };
-      if (scope.warehouseId) countFilter.warehouseId = scope.warehouseId;
+      if (scope.warehouseIds) countFilter.warehouseId = { $in: scope.warehouseIds };
+      countFilter.status = { $ne: "pending" };
       const counts = await InventoryCount.find(countFilter).lean();
       const lines = counts.flatMap(c => c.lines);
       const accurateLines = lines.filter(l => l.counted === l.expected).length;
@@ -155,15 +157,16 @@ dashboardRouter.get("/stock", async (req, res, next) => {
   try {
     const { warehouseId, days } = z.object({
       warehouseId: z.string().optional(),
-      days: z.coerce.number().int().min(1).max(365).default(30),
+      // Default: the reports module's "slowMovingDays" setting.
+      days: z.coerce.number().int().min(1).max(365).default(Number(moduleSettings(req.access!.company as any, "reports").slowMovingDays) || 30),
     }).parse(req.query);
-    const scope = await buildScope(req.auth!, warehouseId);
+    const scope = await buildScope(req, warehouseId);
     const since = new Date(Date.now() - days * DAY_MS);
     const [balances, recent, lastMoves] = await Promise.all([
       scopedBalances(scope),
       scopedMovements(scope, { from: since }, { type: "outbound" }),
       Movement.aggregate<{ _id: unknown; last: Date }>([
-        { $match: { companyId: scope.companyId, ...(scope.warehouseId ? { warehouseId: scope.warehouseId } : {}) } },
+        { $match: { companyId: scope.companyId, ...movementWarehouseMatch(scope) } },
         { $unwind: "$lines" },
         { $match: { "lines.productId": { $in: scope.productIds } } },
         { $group: { _id: "$lines.productId", last: { $max: "$createdAt" } } },

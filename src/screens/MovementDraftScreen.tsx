@@ -96,7 +96,7 @@ export default function MovementDraftScreen({
                   <View className="flex-1 min-w-0">
                     <Text className="text-sm font-semibold text-[#0F172A]" numberOfLines={1}>{first.product.name}</Text>
                     <Text className="text-xs font-mono text-[#64748B]">{first.product.sku}</Text>
-                    {first.lot && <Text className="text-xs text-[#64748B]">Lote: {first.lot}</Text>}
+                    {!!first.lot && <Text className="text-xs text-[#64748B]">Lote: {first.lot}</Text>}
                   </View>
                   <View className="items-end">
                     <Text className="text-lg font-bold text-[#4F46E5]">{totalQty}</Text>

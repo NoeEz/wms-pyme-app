@@ -1,9 +1,11 @@
 import { Schema, model, InferSchemaType, Types } from "mongoose";
 
-export const AUDIT_ENTITIES = ["company", "modules", "warehouse", "location", "product", "customer", "user", "count"] as const;
+export const AUDIT_ENTITIES = ["company", "modules", "warehouse", "location", "product", "customer", "user", "count", "role", "group", "permission", "access"] as const;
 export type AuditEntity = (typeof AUDIT_ENTITIES)[number];
 
-export const AUDIT_ACTIONS = ["create", "update", "deactivate", "activate", "count"] as const;
+// grant / revoke: individual permission exceptions; approve / reject:
+// critical adjustments; login / denied: authorization events (§4.5.8).
+export const AUDIT_ACTIONS = ["create", "update", "deactivate", "activate", "count", "grant", "revoke", "approve", "reject", "login", "denied"] as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
 
 // Who changed what and when, for everything managed from the web portal.
@@ -17,6 +19,7 @@ const auditLogSchema = new Schema({
   entity: { type: String, enum: AUDIT_ENTITIES, required: true },
   entityId: { type: Schema.Types.ObjectId },
   label: { type: String }, // human handle: SKU, location code, email…
+  reason: { type: String }, // justification (permission exceptions, rejected adjustments)
   changes: [{ _id: false, field: String, from: Schema.Types.Mixed, to: Schema.Types.Mixed }],
 }, { timestamps: { createdAt: "createdAt", updatedAt: false } });
 

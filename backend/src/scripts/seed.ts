@@ -9,6 +9,9 @@ import { User } from "../models/User";
 import { Movement } from "../models/Movement";
 import { AuditLog } from "../models/AuditLog";
 import { InventoryCount } from "../models/InventoryCount";
+import { AccessRole } from "../models/AccessRole";
+import { Group } from "../models/Group";
+import { ensureSystemRoles } from "../services/access";
 import { seedHistory } from "./seedHistory";
 
 const DEMO_PASSWORD = "demo1234";
@@ -17,6 +20,8 @@ export async function runSeed(): Promise<void> {
   console.log("[seed] wiping demo collections...");
   await Promise.all([
     Movement.deleteMany({}),
+    AccessRole.deleteMany({}),
+    Group.deleteMany({}),
     InventoryCount.deleteMany({}),
     AuditLog.deleteMany({}),
     StockBalance.deleteMany({}),
@@ -105,6 +110,21 @@ export async function runSeed(): Promise<void> {
   await User.insertMany([
     { companyId: alfa._id, name: "Admin Alfa", email: "admin@nova.mx", passwordHash, role: "admin" },
   ]);
+
+  // RBAC (§4.5.10): predefined roles per company, plus a sample custom role
+  // and work group the admin can assign from the portal.
+  await ensureSystemRoles(company._id);
+  await ensureSystemRoles(alfa._id);
+  const auditor = await AccessRole.create({
+    companyId: company._id, key: "custom-auditor", name: "Auditor de inventario", system: false,
+    description: "Cuenta y verifica existencias; consulta historial, bitácora y reportes. No mueve mercancía.",
+    permissions: ["products.view", "inventory.view", "inventory.count", "history.view", "audit.view", "reports.view", "reports.export"],
+  });
+  await Group.create({
+    companyId: company._id, name: "Inventarios cíclicos",
+    description: "Personal que realiza los conteos cíclicos. Agrega miembros desde el portal.",
+    roleIds: [auditor._id], memberIds: [], warehouseIds: [],
+  });
 
   console.log("[seed] done. Demo login password for all users:", DEMO_PASSWORD);
   console.log("[seed] companies (login \"Empresa\"): nova, alfa");

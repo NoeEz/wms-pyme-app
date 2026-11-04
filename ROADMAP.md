@@ -125,7 +125,7 @@ Decisiones tomadas (nov 2026): portal en `web/` (Vite + React + TS + Tailwind) p
 
 Ideas para crecer el producto una vez estable. Priorizar según lo que pidan los clientes.
 
-- [ ] **Módulos definidos por el administrador** (el catálogo de EPIC-6 hoy es fijo "porque el MVP solo necesita un conjunto cerrado")
+- [x] **Módulos de la especificación §4.5 administrados solo por el administrador** (nov 2026): 10 módulos (productos, almacenes/ubicaciones, entradas, salidas, transferencias, inventarios y ajustes, trazabilidad, reportes, cámara, administración) con centrales protegidos, dependencias y configuración por empresa; RBAC con roles personalizados, grupos, excepciones individuales justificadas y alcance por almacén; facultades de administración no delegables; ajustes críticos autorizados por otro usuario; transferencias entre almacenes; bitácora de inicios de sesión y accesos denegados
 - [ ] Planes por suscripción ligados a los módulos (p. ej. básico: entradas/salidas; pro: transferencias, cámara, historial, reportes)
 - [ ] Conteos cíclicos e inventario físico con ajustes
 - [ ] Órdenes de compra y de venta: recibir y surtir contra un documento (picking / packing)

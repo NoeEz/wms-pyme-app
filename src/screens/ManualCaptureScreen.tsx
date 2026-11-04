@@ -160,7 +160,7 @@ export default function ManualCaptureScreen({ token, onAdd, onBack }: Props) {
               </View>
             )}
 
-            {error && !error.includes('lote') && !error.includes('serie') && (
+            {!!error && !error.includes('lote') && !error.includes('serie') && (
               <View className="flex-row items-center gap-2 bg-[#FEE2E2] px-4 py-3 rounded-[10px]">
                 <Icon name="warning" size={16} color="#7F1D1D" />
                 <Text className="text-[#7F1D1D] text-sm">{error}</Text>

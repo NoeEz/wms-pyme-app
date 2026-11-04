@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, errorMessage, qs } from "../lib/api";
-import { useLocations, useProducts, useWarehouseFilter, useWarehouses } from "../lib/data";
+import { useCan, useSession } from "../lib/auth";
+import { useLocations, useModuleSetting, useProducts, useWarehouseFilter, useWarehouses } from "../lib/data";
 import { fmtDateTime, fmtNumber } from "../lib/format";
 import type { Balance, InventoryCount, Movement } from "../lib/types";
 import { Badge, Button, Card, EmptyState, ErrorBox, Field, Input, Loading, PageHeader, Select, Table, td, th } from "../components/ui";
@@ -10,11 +11,18 @@ import { Icon } from "../components/Icon";
 interface CountLine { productId: string; sku: string; name: string; unit: string; expected: number; counted: string }
 
 export default function CountsPage() {
+  const canCount = useCan("inventory.count");
+  const canApprove = useCan("inventory.approve");
+  const requireApproval = useModuleSetting("inventory", "requireApproval");
+  const threshold = useModuleSetting("inventory", "approvalThreshold");
   const { warehouseId: filterWarehouse } = useWarehouseFilter();
   const { data: warehouses } = useWarehouses();
   const [warehouseId, setWarehouseId] = useState(filterWarehouse);
   const [locationId, setLocationId] = useState("");
-  const [blind, setBlind] = useState(true);
+  const blindDefault = useModuleSetting("inventory", "blindCountDefault");
+  const notesRequired = useModuleSetting("inventory", "requireCountNotes") === true;
+  const [blindPicked, setBlind] = useState<boolean | null>(null);
+  const blind = blindPicked ?? blindDefault !== false;
   const [lines, setLines] = useState<CountLine[]>([]);
   const [addProduct, setAddProduct] = useState("");
   const [notes, setNotes] = useState("");
@@ -59,10 +67,16 @@ export default function CountsPage() {
 
   return (
     <>
-      <PageHeader title="Conteos físicos" description="Cuenta una ubicación y corrige el sistema. Cada diferencia queda como movimiento de ajuste (folio AJU) y alimenta el KPI de precisión de inventario." />
+      <PageHeader title="Conteos y ajustes" description="Cuenta una ubicación y corrige el sistema. Cada diferencia queda como movimiento de ajuste (folio AJU) con saldo anterior, diferencia y saldo resultante." />
+      {requireApproval === true && (
+        <p className="mb-4 rounded-xl bg-indigo-50 px-4 py-3 text-sm text-indigo-900">
+          Ajustes críticos con autorización: si la diferencia total llega a {fmtNumber(Number(threshold ?? 0) || 1)} unidad(es), el ajuste espera a que otro usuario con permiso «Autorizar ajustes» lo apruebe.
+        </p>
+      )}
+      {canApprove && <PendingApprovals />}
 
       <div className="grid gap-6 xl:grid-cols-5">
-        <Card title="Nuevo conteo" className="xl:col-span-3">
+        {canCount && <Card title="Nuevo conteo" className="xl:col-span-3">
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Almacén">
               <Select value={warehouseId} onChange={e => { setWarehouseId(e.target.value); setLocationId(""); setResult(null); }}>
@@ -129,7 +143,7 @@ export default function CountsPage() {
                       }}
                     >Agregar</Button>
                   </div>
-                  <Field label="Notas (opcional)" className="mt-4">
+                  <Field label={notesRequired ? "Motivo / notas (obligatorio si hay diferencias)" : "Notas (opcional)"} className="mt-4">
                     <Input value={notes} onChange={e => setNotes(e.target.value)} maxLength={200} placeholder="Conteo cíclico semanal, zona A…" />
                   </Field>
                   {submit.isError && <div className="mt-4"><ErrorBox message={errorMessage(submit.error)} /></div>}
@@ -142,9 +156,9 @@ export default function CountsPage() {
           )}
 
           {result && <CountResult result={result} />}
-        </Card>
+        </Card>}
 
-        <Card title="Conteos recientes" className="xl:col-span-2" padded={false}>
+        <Card title="Conteos recientes" className={canCount ? "xl:col-span-2" : "xl:col-span-5"} padded={false}>
           {history.isPending ? <Loading /> : history.isError ? <div className="p-4"><ErrorBox message={errorMessage(history.error)} /></div> : !history.data.length ? (
             <EmptyState icon="count" title="Sin conteos todavía" />
           ) : (
@@ -153,9 +167,12 @@ export default function CountsPage() {
                 <li key={c._id} className="px-5 py-3">
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-mono text-sm font-medium">{c.locationId?.code}</span>
-                    {c.accurate ? <Badge variant="success">Sin diferencia</Badge> : <Badge variant="warning">{c.adjustmentId?.folio ?? "Ajustado"}</Badge>}
+                    {c.status === "pending" ? <Badge variant="info">Pendiente de autorización</Badge>
+                      : c.status === "rejected" ? <Badge variant="danger">Rechazado</Badge>
+                      : c.accurate ? <Badge variant="success">Sin diferencia</Badge> : <Badge variant="warning">{c.adjustmentId?.folio ?? "Ajustado"}</Badge>}
                   </div>
                   <p className="mt-1 text-xs text-slate-500">{fmtDateTime(c.createdAt)} · {c.userId?.name} · {c.lines.length} producto(s)</p>
+                  {c.reviewedBy && <p className="mt-0.5 text-xs text-slate-500">{c.status === "rejected" ? "Rechazado" : "Autorizado"} por {c.reviewedBy.name}{c.reviewNote ? ` · «${c.reviewNote}»` : ""}</p>}
                   {!c.accurate && (
                     <p className="mt-1 text-xs text-slate-600">
                       {c.lines.filter(l => l.counted !== l.expected).map(l => `${l.productId?.sku}: ${l.expected} → ${l.counted}`).join(" · ")}
@@ -171,8 +188,66 @@ export default function CountsPage() {
   );
 }
 
+function PendingApprovals() {
+  const session = useSession();
+  const queryClient = useQueryClient();
+  const pending = useQuery({
+    queryKey: ["counts", { status: "pending" }],
+    queryFn: () => api.get<{ counts: InventoryCount[] }>(`/counts${qs({ status: "pending", limit: 50 })}`).then(r => r.counts),
+  });
+  const [notes, setNotes] = useState<Record<string, string>>({});
+  const review = useMutation({
+    mutationFn: ({ id, decision }: { id: string; decision: "approve" | "reject" }) =>
+      api.post<{ count: InventoryCount; adjustment: Movement | null }>(`/counts/${id}/${decision}`, { note: notes[id]?.trim() || undefined }),
+    onSuccess: () => ["counts", "inventory", "dashboard", "movements", "audit"].forEach(k => queryClient.invalidateQueries({ queryKey: [k] })),
+  });
+  if (!pending.data?.length) return null;
+
+  return (
+    <Card title={`Ajustes por autorizar (${pending.data.length})`} className="mb-6" padded={false}>
+      <ul className="divide-y divide-slate-100">
+        {pending.data.map(c => {
+          const own = c.userId?._id === session.user.id;
+          const diffs = c.lines.filter(l => l.counted !== l.expected);
+          const busy = (decision: string) => review.isPending && review.variables?.id === c._id && review.variables.decision === decision;
+          return (
+            <li key={c._id} className="flex flex-col gap-2 px-5 py-3">
+              <div className="flex flex-wrap items-center gap-2 text-sm">
+                <span className="font-mono font-medium">{c.locationId?.code}</span>
+                <span className="text-slate-500">{fmtDateTime(c.createdAt)} · contado por {c.userId?.name}</span>
+                {c.notes && <span className="text-xs text-slate-500">«{c.notes}»</span>}
+              </div>
+              <p className="text-xs text-slate-700">
+                {diffs.map(l => `${l.productId?.sku}: sistema ${fmtNumber(l.expected)} → contado ${fmtNumber(l.counted)} (${l.counted - l.expected > 0 ? "+" : ""}${fmtNumber(l.counted - l.expected)})`).join(" · ")}
+              </p>
+              {own ? (
+                <p className="text-xs text-amber-700">Lo contaste tú: debe autorizarlo otro usuario.</p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  <Input value={notes[c._id] ?? ""} onChange={e => setNotes(n => ({ ...n, [c._id]: e.target.value }))} placeholder="Comentario (obligatorio para rechazar)" className="max-w-sm" maxLength={300} />
+                  <Button size="sm" icon="check" loading={busy("approve")} onClick={() => review.mutate({ id: c._id, decision: "approve" })}>Autorizar y ajustar</Button>
+                  <Button size="sm" variant="secondary" disabled={(notes[c._id] ?? "").trim().length < 5} loading={busy("reject")} onClick={() => review.mutate({ id: c._id, decision: "reject" })}>Rechazar</Button>
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      {review.isError && <div className="p-4"><ErrorBox message={errorMessage(review.error)} /></div>}
+    </Card>
+  );
+}
+
 function CountResult({ result }: { result: { count: InventoryCount; adjustment: Movement | null } }) {
   const diffs = result.count.lines.filter(l => l.counted !== l.expected);
+  if (result.count.status === "pending") {
+    return (
+      <div className="mt-5 rounded-xl bg-indigo-50 px-4 py-3 text-sm text-indigo-900" role="status">
+        <p className="flex items-center gap-2 font-medium"><Icon name="warning" size={18} /> Conteo guardado con {diffs.length} diferencia(s): ajuste crítico pendiente de autorización.</p>
+        <p className="mt-1 text-xs">Las existencias no cambian hasta que otro usuario con permiso lo autorice.</p>
+      </div>
+    );
+  }
   return (
     <div className={`mt-5 rounded-xl px-4 py-3 text-sm ${result.count.accurate ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-900"}`} role="status">
       {result.count.accurate ? (

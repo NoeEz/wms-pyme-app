@@ -1,4 +1,4 @@
-import { useEffect, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes } from "react";
+import { useEffect, useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes } from "react";
 import { Icon } from "./Icon";
 
 // Shared UI kit for the portal — same visual language as the mobile app
@@ -52,6 +52,26 @@ const CONTROL = "h-10 w-full rounded-xl border border-slate-300 bg-white px-3 te
 
 export function Input({ className = "", ...rest }: InputHTMLAttributes<HTMLInputElement>) {
   return <input {...rest} className={`${CONTROL} ${className}`} />;
+}
+
+/** Password input with an eye button to show/hide what was typed. */
+export function PasswordInput({ className = "", ...rest }: Omit<InputHTMLAttributes<HTMLInputElement>, "type">) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <div className="relative">
+      <input {...rest} type={visible ? "text" : "password"} className={`${CONTROL} pr-11 ${className}`} />
+      <button
+        type="button"
+        onClick={() => setVisible(v => !v)}
+        className="absolute inset-y-0 right-0 flex w-10 items-center justify-center rounded-r-xl text-slate-400 hover:text-slate-600 focus-visible:outline-2 focus-visible:outline-indigo-500"
+        aria-label={visible ? "Ocultar contraseña" : "Mostrar contraseña"}
+        aria-pressed={visible}
+        title={visible ? "Ocultar contraseña" : "Mostrar contraseña"}
+      >
+        <Icon name={visible ? "eye_off" : "eye"} size={18} />
+      </button>
+    </div>
+  );
 }
 
 export function Select({ className = "", children, ...rest }: SelectHTMLAttributes<HTMLSelectElement>) {

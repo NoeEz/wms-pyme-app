@@ -9,6 +9,7 @@ type CamState = "requesting" | "denied" | "active" | "scanning" | "detected";
 
 // WMS labels are QR; supplier barcodes on boxes are usually EAN/UPC/Code 128.
 const BARCODE_TYPES: BarcodeType[] = ["qr", "ean13", "ean8", "upc_a", "upc_e", "code128", "code39"];
+const QR_ONLY: BarcodeType[] = ["qr"];
 // The camera reports the same code many times per second while it stays in
 // frame; ignore repeats of the last code for this long.
 const SAME_CODE_COOLDOWN_MS = 2500;
@@ -20,9 +21,13 @@ interface Props {
   onClose: () => void;
   onManual: () => void;
   onHandheld: () => void;
+  /** Camera module setting: read only QR codes (WMS labels), ignore supplier barcodes. */
+  qrOnly?: boolean;
+  /** Permission "capture.manual". */
+  canManual?: boolean;
 }
 
-export default function ScanCameraScreen({ token, items, onAddItem, onClose, onManual, onHandheld }: Props) {
+export default function ScanCameraScreen({ token, items, onAddItem, onClose, onManual, onHandheld, qrOnly = false, canManual = true }: Props) {
   const [permission, requestPermission] = useCameraPermissions();
   const [camState, setCamState] = useState<CamState>("requesting");
   const [flashOn, setFlashOn] = useState(false);
@@ -79,7 +84,7 @@ export default function ScanCameraScreen({ token, items, onAddItem, onClose, onM
             style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
             facing="back"
             enableTorch={flashOn}
-            barcodeScannerSettings={{ barcodeTypes: BARCODE_TYPES }}
+            barcodeScannerSettings={{ barcodeTypes: qrOnly ? QR_ONLY : BARCODE_TYPES }}
             onBarcodeScanned={handleBarcodeScanned}
           />
         )}
@@ -121,7 +126,7 @@ export default function ScanCameraScreen({ token, items, onAddItem, onClose, onM
             <View className="flex flex-col w-full gap-2">
               <Button variant="secondary" fullWidth onClick={() => Linking.openSettings()} icon="settings">Abrir configuración</Button>
               <Button variant="primary" fullWidth onClick={onHandheld} icon="scan">Usar lector handheld</Button>
-              <Button variant="ghost" fullWidth onClick={onManual} icon="edit">Captura manual</Button>
+              {canManual && <Button variant="ghost" fullWidth onClick={onManual} icon="edit">Captura manual</Button>}
             </View>
           </View>
         )}
@@ -181,13 +186,15 @@ export default function ScanCameraScreen({ token, items, onAddItem, onClose, onM
             <Icon name="scan" size={15} color="#94A3B8" />
             <Text className="text-[#94A3B8] text-xs font-medium">Lector handheld</Text>
           </Pressable>
-          <Pressable
-            onPress={onManual}
-            className="flex-1 flex-row items-center justify-center gap-1.5 border border-[#475569] py-2.5 rounded-[10px]"
-          >
-            <Icon name="edit" size={15} color="#94A3B8" />
-            <Text className="text-[#94A3B8] text-xs font-medium">Captura manual</Text>
-          </Pressable>
+          {canManual && (
+            <Pressable
+              onPress={onManual}
+              className="flex-1 flex-row items-center justify-center gap-1.5 border border-[#475569] py-2.5 rounded-[10px]"
+            >
+              <Icon name="edit" size={15} color="#94A3B8" />
+              <Text className="text-[#94A3B8] text-xs font-medium">Captura manual</Text>
+            </Pressable>
+          )}
         </View>
       </View>
 

@@ -9,6 +9,8 @@ export type StockStatus = "stockout" | "low" | "slow" | "ok";
 export interface SessionUser { id: string; name: string; email: string; role: Role }
 export interface SessionCompany { id: string; name: string; slug: string }
 export interface SessionCustomer { id: string; code: string; name: string }
+/** Effective access computed by the API (permissions after modules; null warehouses = all). */
+export interface SessionAccess { permissions: string[]; warehouseIds: string[] | null; modules: string[] }
 
 export interface Warehouse { _id: string; name: string; city: string; state: "active" | "inactive" }
 
@@ -38,6 +40,14 @@ export interface Product {
   active?: boolean;
 }
 
+export interface PermissionOverride {
+  permission: string;
+  effect: "allow" | "deny";
+  reason: string;
+  grantedByName?: string;
+  grantedAt?: string;
+}
+
 export interface User {
   _id: string;
   name: string;
@@ -45,6 +55,44 @@ export interface User {
   role: Role;
   customerId?: { _id: string; code: string; name: string } | null;
   active?: boolean;
+  roleIds?: string[];
+  warehouseIds?: string[];
+  permissionOverrides?: PermissionOverride[];
+}
+
+export interface PermissionDef { key: string; module: string | null; label: string; reserved?: boolean }
+export interface CatalogModule { key: string; label: string; section: string; core: boolean }
+
+export interface AccessRole {
+  _id: string;
+  key: string;
+  name: string;
+  description: string;
+  permissions: string[];
+  system: boolean;
+  active: boolean;
+  users: number;
+  groups: number;
+}
+
+export interface Group {
+  _id: string;
+  name: string;
+  description: string;
+  memberIds: string[];
+  roleIds: string[];
+  warehouseIds: string[];
+  active: boolean;
+}
+
+export interface PermissionSource { kind: "role" | "custom_role" | "group" | "allow" | "deny" | "admin" | "client"; name: string }
+
+export interface UserAccess {
+  permissions: string[];
+  blockedByModule: string[];
+  sources: Record<string, PermissionSource[]>;
+  warehouseIds: string[] | null;
+  groups: { _id: string; name: string; active: boolean }[];
 }
 
 export interface MovementLine {
@@ -62,6 +110,7 @@ export interface Movement {
   type: MovementType;
   status: string;
   warehouseId: string;
+  destinationWarehouseId?: string;
   userId: { _id: string; name: string; role: Role } | string;
   reference?: string;
   lines: MovementLine[];
@@ -143,9 +192,12 @@ export interface StockRow {
 
 export interface InventoryCount {
   _id: string;
+  status?: "applied" | "pending" | "rejected";
+  reviewedBy?: { _id: string; name: string } | null;
+  reviewNote?: string;
   locationId: { _id: string; code: string };
   userId: { _id: string; name: string };
-  lines: { productId: { _id: string; sku: string; name: string; unit: string }; expected: number; counted: number }[];
+  lines: { productId: { _id: string; sku: string; name: string; unit: string }; expected: number; counted: number; before?: number }[];
   accurate: boolean;
   adjustmentId?: { _id: string; folio: string } | null;
   notes?: string;
@@ -155,7 +207,8 @@ export interface InventoryCount {
 export interface AuditEntry {
   _id: string;
   userName: string;
-  action: "create" | "update" | "deactivate" | "activate" | "count";
+  action: "create" | "update" | "deactivate" | "activate" | "count" | "grant" | "revoke" | "approve" | "reject" | "login" | "denied";
+  reason?: string;
   entity: string;
   entityId?: string;
   label?: string;
@@ -163,4 +216,27 @@ export interface AuditEntry {
   createdAt: string;
 }
 
-export interface ModuleInfo { key: string; label: string; description: string; enabled: boolean }
+export interface ModuleSettingDef {
+  key: string;
+  label: string;
+  help?: string;
+  type: "boolean" | "number";
+  default: boolean | number;
+  min?: number;
+  max?: number;
+  unit?: string;
+}
+
+export interface ModuleInfo {
+  key: string;
+  label: string;
+  description: string;
+  section: string;
+  core: boolean;
+  dependsOn: string[];
+  dependsOnAny: string[];
+  enabled: boolean;
+  settingsSchema: ModuleSettingDef[];
+  settings: Record<string, boolean | number>;
+  permissions: string[];
+}

@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { errorMessage } from "../lib/api";
 import { numberOrNull, useSave } from "../lib/crud";
-import { useCustomers, useProducts } from "../lib/data";
+import { useCustomers, useModuleSetting, useProducts } from "../lib/data";
 import { fmtMoney, fmtNumber, TRACKING_LABEL } from "../lib/format";
 import type { Product, Tracking } from "../lib/types";
 import { Badge, Button, Card, EmptyState, ErrorBox, Field, Input, Loading, Modal, PageHeader, SearchInput, Select, Table, Toggle, td, th } from "../components/ui";
@@ -57,12 +57,15 @@ export default function ProductsPage() {
 
 function ProductForm({ product, onClose }: { product: Product | null; onClose: () => void }) {
   const customers = useCustomers();
+  const costRequired = useModuleSetting("products", "requireCost") === true;
+  const barcodeRequired = useModuleSetting("products", "requireBarcode") === true;
+  const defaultMinimum = Number(useModuleSetting("products", "defaultLowStockThreshold")) || 0;
   const [form, setForm] = useState({
     sku: product?.sku ?? "",
     name: product?.name ?? "",
     unit: product?.unit ?? "pza",
     tracking: (product?.tracking ?? "none") as Tracking,
-    lowStockThreshold: String(product?.lowStockThreshold ?? 0),
+    lowStockThreshold: product ? String(product.lowStockThreshold ?? 0) : "",
     cost: product?.cost != null ? String(product.cost) : "",
     customerId: product?.customerId ?? "",
     barcodes: (product?.barcodeValues ?? []).join(", "),
@@ -79,7 +82,8 @@ function ProductForm({ product, onClose }: { product: Product | null; onClose: (
         name: form.name.trim(),
         unit: form.unit.trim() || "pza",
         tracking: form.tracking,
-        lowStockThreshold: Number(form.lowStockThreshold) || 0,
+        // Empty on a new product → the server applies the module's default minimum.
+        ...(form.lowStockThreshold.trim() !== "" || product ? { lowStockThreshold: Number(form.lowStockThreshold) || 0 } : {}),
         cost: numberOrNull(form.cost),
         customerId: form.customerId || null,
         barcodeValues: form.barcodes.split(",").map(s => s.trim()).filter(Boolean),
@@ -108,9 +112,9 @@ function ProductForm({ product, onClose }: { product: Product | null; onClose: (
             {customers.data?.filter(c => c.active !== false || c._id === form.customerId).map(c => <option key={c._id} value={c._id}>{c.code} · {c.name}</option>)}
           </Select>
         </Field>
-        <Field label="Stock mínimo" hint="Alerta de stock bajo al llegar a este nivel."><Input type="number" min={0} value={form.lowStockThreshold} onChange={e => set({ lowStockThreshold: e.target.value })} /></Field>
-        <Field label="Costo unitario (MXN)" hint="Opcional, para valuar el inventario."><Input type="number" min={0} step="0.01" value={form.cost} onChange={e => set({ cost: e.target.value })} /></Field>
-        <Field label="Códigos de barras del proveedor" hint="Separados por coma. El SKU también se reconoce al escanear." className="sm:col-span-2">
+        <Field label="Stock mínimo" hint={product ? "Alerta de stock bajo al llegar a este nivel." : `Vacío = ${defaultMinimum} (valor por omisión de la empresa).`}><Input type="number" min={0} value={form.lowStockThreshold} placeholder={String(defaultMinimum)} onChange={e => set({ lowStockThreshold: e.target.value })} /></Field>
+        <Field label={costRequired ? "Costo unitario (MXN) · obligatorio" : "Costo unitario (MXN)"} hint={costRequired ? "Tu empresa lo exige para valuar el inventario." : "Opcional, para valuar el inventario."}><Input type="number" min={0} step="0.01" value={form.cost} onChange={e => set({ cost: e.target.value })} /></Field>
+        <Field label={barcodeRequired ? "Códigos de barras del proveedor · al menos uno" : "Códigos de barras del proveedor"} hint="Separados por coma. El SKU también se reconoce al escanear." className="sm:col-span-2">
           <Input value={form.barcodes} onChange={e => set({ barcodes: e.target.value })} placeholder="7501234567890, ABC-123" />
         </Field>
         {product && (
