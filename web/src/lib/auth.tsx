@@ -77,7 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user: { role: SessionUser["role"]; name: string };
         company: SessionCompany | null;
         customer: SessionCustomer | null;
-        access: SessionAccess;
+        access?: SessionAccess;
       }>("/auth/me");
       setSession(current => {
         if (!current || !me.company) return current;
@@ -86,7 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           user: { ...current.user, name: me.user.name, role: me.user.role },
           company: { id: me.company.id, name: me.company.name, slug: me.company.slug },
           customer: me.customer,
-          access: me.access,
+          access: me.access ?? current.access,
         };
         store(SESSION_KEY, next);
         return next;
@@ -112,6 +112,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (company: string, email: string, password: string) => {
     const result = await api.post<Omit<Session, "token"> & { token: string }>("/auth/login", { company, email, password });
+    // A session without permissions can't render the portal (e.g. an API older than this build).
+    if (!result.access) throw new Error("El servidor no envió tus permisos: la API está desactualizada respecto al portal.");
     const next: Session = { token: result.token, user: result.user, company: result.company, customer: result.customer ?? null, access: result.access };
     setAuthToken(next.token);
     store(SESSION_KEY, next);
