@@ -1,11 +1,12 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { api, setAuthToken, setUnauthorizedHandler } from "./api";
-import type { Role, SessionCompany, SessionCustomer, SessionUser } from "./types";
+import type { SessionAccess, SessionCompany, SessionCustomer, SessionUser } from "./types";
 
 // Portal session: token + user + company (+ 3PL customer for role "client").
 // Kept in localStorage so a reload doesn't log the user out; validated
 // against /auth/me on load and dropped on any 401.
-const SESSION_KEY = "wms_portal_session_v1";
+// v2: sessions carry the user's effective access (permissions + warehouses).
+const SESSION_KEY = "wms_portal_session_v2";
 const LAST_COMPANY_KEY = "wms_portal_last_company";
 
 export interface Session {
@@ -13,6 +14,7 @@ export interface Session {
   user: SessionUser;
   company: SessionCompany;
   customer: SessionCustomer | null;
+  access: SessionAccess;
 }
 
 interface AuthContextValue {
@@ -20,6 +22,8 @@ interface AuthContextValue {
   login: (company: string, email: string, password: string) => Promise<void>;
   logout: () => void;
   updateCompany: (company: SessionCompany) => void;
+  /** Re-reads names and permissions from /auth/me (after admin changes, on focus). */
+  refresh: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -48,7 +52,8 @@ export function lastCompany(): string {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(() => {
-    const stored = readStored<Session>(SESSION_KEY);
+    const raw = readStored<Session>(SESSION_KEY);
+    const stored = raw?.access ? raw : null;
     setAuthToken(stored?.token ?? null);
     return stored;
   });
@@ -64,24 +69,52 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => setUnauthorizedHandler(null);
   }, [logout]);
 
-  // Refresh names (company renamed, user edited) and catch revoked access.
-  useEffect(() => {
-    if (!session) return;
-    api.get<{ company: SessionCompany & { _id?: string }; customer: SessionCustomer | null }>("/auth/me")
-      .then(me => {
-        if (!me.company) return;
-        const next = { ...session, company: { id: me.company.id, name: me.company.name, slug: me.company.slug }, customer: me.customer };
+  // Refresh names (company renamed, user edited), permissions (an admin
+  // changed roles, groups or modules) and catch revoked access.
+  const refresh = useCallback(async () => {
+    try {
+      const me = await api.get<{
+        user: { role: SessionUser["role"]; name: string };
+        company: SessionCompany | null;
+        customer: SessionCustomer | null;
+        access?: SessionAccess;
+      }>("/auth/me");
+      setSession(current => {
+        if (!current || !me.company) return current;
+        const next: Session = {
+          ...current,
+          user: { ...current.user, name: me.user.name, role: me.user.role },
+          company: { id: me.company.id, name: me.company.name, slug: me.company.slug },
+          customer: me.customer,
+          access: me.access ?? current.access,
+        };
         store(SESSION_KEY, next);
-        setSession(next);
-      })
-      .catch(() => {}); // a 401 already logs out; offline keeps the stored session
-    // Only on first load.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        return next;
+      });
+    } catch {
+      // a 401 already logs out; offline keeps the stored session
+    }
   }, []);
+
+  const hasSession = !!session;
+  useEffect(() => {
+    if (!hasSession) return;
+    refresh();
+    let last = Date.now();
+    const onFocus = () => {
+      if (Date.now() - last < 30_000) return;
+      last = Date.now();
+      refresh();
+    };
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [hasSession, refresh]);
 
   const login = useCallback(async (company: string, email: string, password: string) => {
     const result = await api.post<Omit<Session, "token"> & { token: string }>("/auth/login", { company, email, password });
-    const next: Session = { token: result.token, user: result.user, company: result.company, customer: result.customer ?? null };
+    // A session without permissions can't render the portal (e.g. an API older than this build).
+    if (!result.access) throw new Error("El servidor no envió tus permisos: la API está desactualizada respecto al portal.");
+    const next: Session = { token: result.token, user: result.user, company: result.company, customer: result.customer ?? null, access: result.access };
     setAuthToken(next.token);
     store(SESSION_KEY, next);
     store(LAST_COMPANY_KEY, next.company.slug);
@@ -98,7 +131,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  return <AuthContext.Provider value={{ session, login, logout, updateCompany }}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={{ session, login, logout, updateCompany, refresh }}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth(): AuthContextValue {
@@ -114,11 +147,15 @@ export function useSession(): Session {
   return session;
 }
 
-// What each role may do in the portal (the API enforces the same rules).
-export const can = {
-  manageCatalog: (r: Role) => r === "supervisor" || r === "admin",
-  count: (r: Role) => r === "supervisor" || r === "admin",
-  audit: (r: Role) => r === "supervisor" || r === "admin",
-  admin: (r: Role) => r === "admin",
-  seeStaff: (r: Role) => r !== "client",
-};
+/**
+ * Whether the session holds a permission (any of several). The menu and the
+ * routes use it to hide what the user can't do; the API enforces the same
+ * rules on every request — this is only about not showing dead ends.
+ */
+export function hasPermission(session: Session | null, ...anyOf: string[]): boolean {
+  return !!session && anyOf.some(p => session.access.permissions.includes(p));
+}
+
+export function useCan(...anyOf: string[]): boolean {
+  return hasPermission(useAuth().session, ...anyOf);
+}

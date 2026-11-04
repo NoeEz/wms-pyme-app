@@ -1,18 +1,20 @@
 import { Types } from "mongoose";
-import type { AuthPayload } from "../middleware/auth";
+import type { Request } from "express";
 import { Location } from "../models/Location";
 import { Movement } from "../models/Movement";
 import { Product } from "../models/Product";
 import { StockBalance } from "../models/StockBalance";
 import { Warehouse } from "../models/Warehouse";
 import { assertWarehouse, productScope } from "./scope";
+import { assertWarehouseAccess, warehouseFilter } from "./access";
 
 // Shared building blocks for the dashboard and reports: what a user may see
 // (company, warehouse, 3PL customer) and how a movement line changes stock.
 
 export interface Scope {
   companyId: Types.ObjectId;
-  warehouseId?: Types.ObjectId;
+  /** Warehouses in scope; undefined = the whole company. */
+  warehouseIds?: Types.ObjectId[];
   isClient: boolean;
   products: Map<string, any>; // lean Product docs by id, active and inactive
   productIds: Types.ObjectId[];
@@ -20,25 +22,42 @@ export interface Scope {
   locationIds: Types.ObjectId[];
 }
 
-export async function buildScope(auth: AuthPayload, warehouseId?: string): Promise<Scope> {
+/**
+ * What the request may see: its company, the chosen warehouse (or the ones
+ * the user is restricted to — reports never reveal other warehouses, §4.5.9)
+ * and, for a 3PL client, its own products.
+ */
+export async function buildScope(req: Request, warehouseId?: string): Promise<Scope> {
+  const auth = req.auth!;
   const companyId = new Types.ObjectId(auth.companyId);
-  if (warehouseId) await assertWarehouse(auth.companyId, warehouseId);
+  if (warehouseId) {
+    await assertWarehouse(auth.companyId, warehouseId);
+    assertWarehouseAccess(req.access!, warehouseId);
+  }
+  const only = warehouseFilter(req.access!);
   const warehouseIds = warehouseId
     ? [new Types.ObjectId(warehouseId)]
-    : (await Warehouse.find({ companyId }).select("_id").lean()).map(w => w._id);
+    : (await Warehouse.find({ companyId, ...(only ? { _id: only } : {}) }).select("_id").lean()).map(w => w._id);
   const [products, locations] = await Promise.all([
     Product.find(productScope(auth)).populate("customerId", "code name").lean(),
     Location.find({ warehouseId: { $in: warehouseIds } }).lean(),
   ]);
   return {
     companyId,
-    warehouseId: warehouseId ? new Types.ObjectId(warehouseId) : undefined,
+    warehouseIds: warehouseId || only ? warehouseIds : undefined,
     isClient: auth.role === "client",
     products: new Map(products.map(p => [String(p._id), p])),
     productIds: products.map(p => p._id),
     locations: new Map(locations.map(l => [String(l._id), l])),
     locationIds: locations.map(l => l._id),
   };
+}
+
+/** Movement filter for the scope's warehouses (inter-warehouse transfers count on both ends). */
+export function movementWarehouseMatch(scope: Scope): Record<string, unknown> {
+  return scope.warehouseIds
+    ? { $or: [{ warehouseId: { $in: scope.warehouseIds } }, { destinationWarehouseId: { $in: scope.warehouseIds } }] }
+    : {};
 }
 
 export async function scopedBalances(scope: Scope) {
@@ -48,7 +67,7 @@ export async function scopedBalances(scope: Scope) {
 /** Movements in scope, oldest first, with lines outside the scope's products removed. */
 export async function scopedMovements(scope: Scope, range: { from?: Date; to?: Date }, extra: Record<string, unknown> = {}) {
   const filter: Record<string, unknown> = { companyId: scope.companyId, ...extra };
-  if (scope.warehouseId) filter.warehouseId = scope.warehouseId;
+  Object.assign(filter, movementWarehouseMatch(scope));
   if (range.from || range.to) {
     filter.createdAt = { ...(range.from ? { $gte: range.from } : {}), ...(range.to ? { $lte: range.to } : {}) };
   }

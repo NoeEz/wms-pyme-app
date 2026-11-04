@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api, errorMessage, qs } from "../lib/api";
 import { useSession } from "../lib/auth";
-import { useWarehouseFilter } from "../lib/data";
+import { useModuleSetting, useWarehouseFilter } from "../lib/data";
 import { fmtDuration, fmtMoney, fmtNumber, fmtPct, MOVEMENT_COLOR, MOVEMENT_LABEL, startOfDayAgo } from "../lib/format";
 import type { MovementType, Overview } from "../lib/types";
 import { Badge, Button, Card, EmptyState, ErrorBox, Loading, PageHeader, Stat, Table, td, th } from "../components/ui";
@@ -23,7 +23,13 @@ export default function DashboardPage() {
   const session = useSession();
   const isClient = session.user.role === "client";
   const { warehouseId } = useWarehouseFilter();
-  const [days, setDays] = useState(30);
+  // Until the user picks a range, use the reports module's default period.
+  const defaultDays = Number(useModuleSetting("reports", "defaultPeriodDays")) || 30;
+  const [picked, setDays] = useState<number | null>(null);
+  const days = picked ?? defaultDays;
+  const ranges = RANGES.some(r => r.days === defaultDays)
+    ? RANGES
+    : [...RANGES, { days: defaultDays, label: `${defaultDays} días` }].sort((a, b) => a.days - b.days);
 
   const query = useQuery({
     queryKey: ["dashboard", "overview", { warehouseId, days }],
@@ -45,7 +51,7 @@ export default function DashboardPage() {
         actions={
           <>
             <div className="flex flex-wrap gap-1 rounded-xl border border-slate-200 bg-white p-1" role="group" aria-label="Periodo">
-              {RANGES.map(r => (
+              {ranges.map(r => (
                 <button
                   key={r.days} onClick={() => setDays(r.days)} aria-pressed={days === r.days}
                   className={`min-h-9 rounded-lg px-3 py-2 text-xs font-semibold ${days === r.days ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"}`}

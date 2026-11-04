@@ -6,9 +6,13 @@ const companySchema = new Schema({
   // Typed by every user at login ("Empresa"), so the same email can exist in
   // two companies. Lowercase letters, digits and dashes.
   slug: { type: String, required: true, unique: true, lowercase: true, trim: true, match: /^[a-z0-9-]+$/ },
-  // EPIC-6 "Módulos Personalizables" — which operational modules this
-  // company's admin has enabled. Defaults to everything on.
+  // EPIC-6 "Módulos Personalizables" (§4.5) — which modules this company's
+  // admin has enabled (core ones are always on, see config/modules.ts),
+  // which catalog keys existed when that choice was saved (modules added
+  // later default to on) and each module's settings.
   enabledModules: { type: [String], default: () => [...ALL_MODULE_KEYS] },
+  knownModules: { type: [String], default: undefined }, // absent = saved before §4.5 (LEGACY_MODULE_KEYS)
+  moduleSettings: { type: Schema.Types.Mixed, default: () => ({}) },
 }, { timestamps: true });
 
 export type CompanyDoc = InferSchemaType<typeof companySchema> & { _id: Types.ObjectId };

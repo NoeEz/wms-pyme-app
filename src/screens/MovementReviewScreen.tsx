@@ -10,6 +10,8 @@ interface Props {
   warehouse: Warehouse;
   origin?: Location;
   destination?: Location;
+  /** Set for a transfer to another warehouse. */
+  destinationWarehouse?: Warehouse;
   reference?: string;
   user: string;
   connection: ConnectionStatus;
@@ -18,7 +20,7 @@ interface Props {
 }
 
 export default function MovementReviewScreen({
-  moveType, items, warehouse, origin, destination, reference, user, connection, onConfirm, onEdit,
+  moveType, items, warehouse, origin, destination, destinationWarehouse, reference, user, connection, onConfirm, onEdit,
 }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
@@ -72,10 +74,11 @@ export default function MovementReviewScreen({
           <View className="flex flex-col gap-2">
             <Row label="Almacén" value={warehouse.name} />
             {origin && <Row label="Origen" value={formatLoc(origin)} mono />}
+            {destinationWarehouse && <Row label="Almacén destino" value={destinationWarehouse.name} />}
             {destination && <Row label="Destino" value={formatLoc(destination)} mono />}
             <Row label="Usuario" value={user} />
             <Row label="Fecha y hora" value={dateStr} />
-            {reference && <Row label="Referencia" value={reference} />}
+            {!!reference && <Row label="Referencia" value={reference} />}
           </View>
         </View>
 
@@ -91,7 +94,7 @@ export default function MovementReviewScreen({
                 <View className="flex-1 min-w-0">
                   <Text className="text-sm font-medium text-[#0F172A]" numberOfLines={1}>{item.product.name}</Text>
                   <Text className="text-xs font-mono text-[#94A3B8]">{item.product.sku}</Text>
-                  {item.lot && <Text className="text-xs text-[#64748B]">Lote: {item.lot}</Text>}
+                  {!!item.lot && <Text className="text-xs text-[#64748B]">Lote: {item.lot}</Text>}
                   {item.serials.length > 0 && (
                     <Text className="text-xs font-mono text-[#64748B]">
                       Serie(s): {item.serials.join(', ')}

@@ -1,14 +1,16 @@
 import { Router, type Request } from "express";
 import { z } from "zod";
-import { verifyJWT, requireRole } from "../middleware/auth";
+import { authenticate, assertPermission, hasPermission, staffOnly } from "../middleware/auth";
 import { HttpError } from "../middleware/errorHandler";
 import { Movement, MOVEMENT_TYPES, OPERATIONAL_MOVEMENT_TYPES } from "../models/Movement";
 import { createMovement } from "../services/movementService";
 import { scopedProductIds } from "../services/scope";
+import { assertWarehouseAccess, canAccessWarehouse, warehouseFilter } from "../services/access";
+import { Types } from "mongoose";
 
 export const movementsRouter = Router();
 
-movementsRouter.use(verifyJWT);
+movementsRouter.use(authenticate);
 
 // A 3PL client user sees only movements touching its customer's products,
 // and only those lines of each movement. Null for staff (no line filter).
@@ -34,6 +36,7 @@ const lineSchema = z.object({
 
 const createSchema = z.object({
   warehouseId: z.string(),
+  destinationWarehouseId: z.string().optional(),
   type: z.enum(OPERATIONAL_MOVEMENT_TYPES),
   reference: z.string().optional(),
   lines: z.array(lineSchema).min(1),
@@ -42,19 +45,27 @@ const createSchema = z.object({
 });
 
 // 3PL client users only look; operating the warehouse is for staff.
-movementsRouter.post("/", requireRole("operator", "supervisor", "admin"), async (req, res, next) => {
+// Needs the permission of its type (inbound.create…) and access to the
+// warehouse(s) involved — checked after the idempotent-replay lookup.
+movementsRouter.post("/", staffOnly, async (req, res, next) => {
   try {
     const body = createSchema.parse(req.body);
+    const authorize = () => {
+      assertPermission(req, `${body.type}.create`);
+      assertWarehouseAccess(req.access!, body.warehouseId);
+      if (body.destinationWarehouseId) assertWarehouseAccess(req.access!, body.destinationWarehouseId);
+    };
     const { movement, replayed } = await createMovement({
       companyId: req.auth!.companyId,
       warehouseId: body.warehouseId,
+      destinationWarehouseId: body.destinationWarehouseId,
       userId: req.auth!.sub,
       type: body.type,
       reference: body.reference,
       lines: body.lines,
       clientId: body.clientId,
       capturedAt: body.capturedAt ? new Date(body.capturedAt) : undefined,
-    });
+    }, authorize);
     // 200 on a replay of an already-applied clientId, 201 when newly created.
     res.status(replayed ? 200 : 201).json({ movement, replayed });
   } catch (err) {
@@ -75,7 +86,19 @@ movementsRouter.get("/", async (req, res, next) => {
   try {
     const { warehouseId, status, type, from, to, limit } = listSchema.parse(req.query);
     const filter: Record<string, unknown> = { companyId: req.auth!.companyId };
-    if (warehouseId) filter.warehouseId = warehouseId;
+    const and: Record<string, unknown>[] = [];
+    // A warehouse's movements include transfers that arrive from another one.
+    if (warehouseId) {
+      if (!Types.ObjectId.isValid(warehouseId)) throw new HttpError(400, "invalid_id", "Identificador inválido en la solicitud.");
+      assertWarehouseAccess(req.access!, warehouseId);
+      const id = new Types.ObjectId(warehouseId);
+      and.push({ $or: [{ warehouseId: id }, { destinationWarehouseId: id }] });
+    }
+    const only = warehouseFilter(req.access!);
+    if (only) and.push({ $or: [{ warehouseId: only }, { destinationWarehouseId: only }] });
+    if (and.length) filter.$and = and;
+    // Without history.view, staff see only what they captured themselves.
+    if (req.auth!.role !== "client" && !hasPermission(req, "history.view")) filter.userId = req.auth!.sub;
     if (status) filter.status = status;
     if (type) filter.type = type;
     if (from || to) filter.createdAt = { ...(from ? { $gte: from } : {}), ...(to ? { $lte: to } : {}) };
@@ -105,7 +128,10 @@ movementsRouter.get("/:id", async (req, res, next) => {
       .populate("lines.productId")
       .populate("lines.sourceLocationId")
       .populate("lines.destinationLocationId");
-    if (!movement) throw new HttpError(404, "not_found", "Movimiento no encontrado.");
+    const visible = movement
+      && (canAccessWarehouse(req.access!, movement.warehouseId) || (movement.destinationWarehouseId && canAccessWarehouse(req.access!, movement.destinationWarehouseId)))
+      && (req.auth!.role === "client" || hasPermission(req, "history.view") || String((movement.userId as any)?._id ?? movement.userId) === req.auth!.sub);
+    if (!movement || !visible) throw new HttpError(404, "not_found", "Movimiento no encontrado.");
     res.json({ movement: ownIds ? onlyOwnLines(movement, ownIds) : movement });
   } catch (err) {
     next(err);

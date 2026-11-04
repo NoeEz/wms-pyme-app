@@ -9,6 +9,10 @@ export interface User {
   email: string;
   role: Role;
   companyName?: string;
+  /** Effective permissions from the API (roles, groups, exceptions, enabled modules). Absent in sessions saved by older versions. */
+  permissions?: string[];
+  /** Warehouses the user may operate; null = all. */
+  warehouseIds?: string[] | null;
 }
 
 export interface Warehouse {
@@ -47,6 +51,12 @@ export interface ModuleInfo {
   label: string;
   description: string;
   enabled: boolean;
+  /** Core modules (catalog, warehouses, traceability, administration) can't be turned off. */
+  core?: boolean;
+  dependsOn?: string[];
+  dependsOnAny?: string[];
+  /** Per-company options set by the admin, e.g. requireReference, allowInterWarehouse. */
+  settings?: Record<string, boolean | number>;
 }
 
 export interface MovementSummary {

@@ -1,25 +1,30 @@
 import { Router } from "express";
 import { z } from "zod";
-import { verifyJWT, managersOnly } from "../middleware/auth";
+import { authenticate, requirePermission } from "../middleware/auth";
 import { HttpError } from "../middleware/errorHandler";
 import { Location } from "../models/Location";
 import { StockBalance } from "../models/StockBalance";
 import { Warehouse } from "../models/Warehouse";
 import { applyPatch, audit, updateAction } from "../services/audit";
 import { assertWarehouse } from "../services/scope";
+import { assertWarehouseAccess, warehouseFilter } from "../services/access";
 
 // Location management for the web portal. The app keeps reading active
 // locations through GET /inventory/locations.
 export const locationsRouter = Router();
 
-locationsRouter.use(verifyJWT);
+locationsRouter.use(authenticate);
 
 locationsRouter.get("/", async (req, res, next) => {
   try {
     const { warehouseId, includeInactive } = req.query as Record<string, string | undefined>;
     const companyId = req.auth!.companyId;
-    if (warehouseId) await assertWarehouse(companyId, warehouseId);
-    const warehouseIds = warehouseId ? [warehouseId] : (await Warehouse.find({ companyId }).select("_id")).map(w => w._id);
+    if (warehouseId) {
+      await assertWarehouse(companyId, warehouseId);
+      assertWarehouseAccess(req.access!, warehouseId);
+    }
+    const only = warehouseFilter(req.access!);
+    const warehouseIds = warehouseId ? [warehouseId] : (await Warehouse.find({ companyId, ...(only ? { _id: only } : {}) }).select("_id")).map(w => w._id);
     const filter: Record<string, unknown> = { warehouseId: { $in: warehouseIds } };
     if (includeInactive !== "true") filter.active = { $ne: false };
     const locations = await Location.find(filter).sort({ code: 1 });
@@ -37,10 +42,11 @@ const fields = {
   code: z.string().trim().min(1).max(40).transform(c => c.toUpperCase()),
 };
 
-locationsRouter.post("/", managersOnly, async (req, res, next) => {
+locationsRouter.post("/", requirePermission("locations.manage"), async (req, res, next) => {
   try {
     const body = z.object({ ...fields, warehouseId: z.string() }).parse(req.body);
     await assertWarehouse(req.auth!.companyId, body.warehouseId);
+    assertWarehouseAccess(req.access!, body.warehouseId);
     const location = await Location.create(body);
     await audit(req.auth!, { action: "create", entity: "location", entityId: location._id, label: location.code });
     res.status(201).json({ location });
@@ -49,7 +55,7 @@ locationsRouter.post("/", managersOnly, async (req, res, next) => {
   }
 });
 
-locationsRouter.patch("/:id", managersOnly, async (req, res, next) => {
+locationsRouter.patch("/:id", requirePermission("locations.manage"), async (req, res, next) => {
   try {
     const body = z.object({ ...fields, active: z.boolean() }).partial().parse(req.body);
     const location = await Location.findById(req.params.id);
@@ -57,6 +63,7 @@ locationsRouter.patch("/:id", managersOnly, async (req, res, next) => {
     await assertWarehouse(req.auth!.companyId, location.warehouseId.toString()).catch(() => {
       throw new HttpError(404, "location_not_found", "La ubicación no existe en tu empresa.");
     });
+    assertWarehouseAccess(req.access!, location.warehouseId);
 
     if (body.active === false && location.active !== false) {
       const withStock = await StockBalance.exists({ locationId: location._id, available: { $gt: 0 } });

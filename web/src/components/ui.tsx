@@ -1,4 +1,4 @@
-import { useEffect, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes } from "react";
+import { useEffect, useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes } from "react";
 import { Icon } from "./Icon";
 
 // Shared UI kit for the portal — same visual language as the mobile app
@@ -52,6 +52,26 @@ const CONTROL = "h-11 w-full min-w-0 rounded-lg border border-slate-300 bg-white
 
 export function Input({ className = "", ...rest }: InputHTMLAttributes<HTMLInputElement>) {
   return <input {...rest} className={`${CONTROL} ${className}`} />;
+}
+
+/** Password input with an eye button to show/hide what was typed. */
+export function PasswordInput({ className = "", ...rest }: Omit<InputHTMLAttributes<HTMLInputElement>, "type">) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <div className="relative">
+      <input {...rest} type={visible ? "text" : "password"} className={`${CONTROL} pr-11 ${className}`} />
+      <button
+        type="button"
+        onClick={() => setVisible(v => !v)}
+        className="absolute inset-y-0 right-0 flex w-10 items-center justify-center rounded-r-xl text-slate-400 hover:text-slate-600 focus-visible:outline-2 focus-visible:outline-indigo-500"
+        aria-label={visible ? "Ocultar contraseña" : "Mostrar contraseña"}
+        aria-pressed={visible}
+        title={visible ? "Ocultar contraseña" : "Mostrar contraseña"}
+      >
+        <Icon name={visible ? "eye_off" : "eye"} size={18} />
+      </button>
+    </div>
+  );
 }
 
 export function Select({ className = "", children, ...rest }: SelectHTMLAttributes<HTMLSelectElement>) {
@@ -138,14 +158,17 @@ export function Modal({ open, title, onClose, children, footer, wide }: { open: 
   }, [open, onClose]);
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/55 p-3 sm:p-6" onMouseDown={e => e.target === e.currentTarget && onClose()}>
-      <div role="dialog" aria-modal="true" aria-label={title} className={`w-full ${wide ? "max-w-3xl" : "max-w-lg"} min-w-0 shrink-0 rounded-xl border border-slate-200 bg-white shadow-2xl sm:my-auto`}>
-        <header className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-4 sm:px-6 sm:py-5">
+    // The dialog never grows past the viewport: header and footer stay put and
+    // only the body scrolls, so tall forms (e.g. the role permission matrix)
+    // don't push their first fields out of reach.
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-3 sm:p-6" onMouseDown={e => e.target === e.currentTarget && onClose()}>
+      <div role="dialog" aria-modal="true" aria-label={title} className={`flex max-h-full w-full min-w-0 flex-col ${wide ? "max-w-3xl" : "max-w-lg"} rounded-xl border border-slate-200 bg-white shadow-2xl`}>
+        <header className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 px-4 py-4 sm:px-6 sm:py-5">
           <h2 className="min-w-0 flex-1 text-base font-semibold text-slate-900 [overflow-wrap:anywhere]">{title}</h2>
           <button onClick={onClose} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-600" aria-label="Cerrar"><Icon name="x" size={18} /></button>
         </header>
-        <div className="px-4 py-5 sm:px-6">{children}</div>
-        {footer && <footer className="flex flex-wrap justify-end gap-2 rounded-b-xl border-t border-slate-200 bg-slate-50 px-4 py-4 sm:px-6">{footer}</footer>}
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6">{children}</div>
+        {footer && <footer className="flex shrink-0 flex-wrap justify-end gap-2 rounded-b-xl border-t border-slate-200 bg-slate-50 px-4 py-4 sm:px-6">{footer}</footer>}
       </div>
     </div>
   );

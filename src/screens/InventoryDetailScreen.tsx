@@ -35,7 +35,7 @@ export default function InventoryDetailScreen({ token, productId, onBack }: Prop
       <View className="flex-1 bg-[#F8FAFC]">
         <View className="flex-1 items-center justify-center gap-3 px-6">
           {loading && <ActivityIndicator size="small" color="#4F46E5" />}
-          {error && (
+          {!!error && (
             <>
               <Icon name="wifi_off" size={28} color="#DC2626" />
               <Text className="text-sm text-[#7F1D1D] text-center">{error}</Text>

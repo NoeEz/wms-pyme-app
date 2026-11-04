@@ -1,47 +1,59 @@
 import { Suspense, useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
-import { can, useAuth, useSession } from "../lib/auth";
+import { hasPermission, useAuth, useSession } from "../lib/auth";
 import { useWarehouseFilter, useWarehouses } from "../lib/data";
 import { ROLE_LABEL } from "../lib/format";
-import type { Role } from "../lib/types";
 import { Icon } from "./Icon";
 import { Loading } from "./ui";
 
-interface NavItem { to: string; label: string; icon: string; allow: (r: Role) => boolean }
+/** `perms`: any of them opens the page; empty = every signed-in user. */
+interface NavItem { to: string; label: string; icon: string; perms: string[] }
 
-const ALL = () => true;
-
-// Single source of truth for the menu; routes are guarded with the same rules.
+// Single source of truth for the menu; routes are guarded with the same
+// permissions (App.tsx). Which ones a user holds depends on its roles,
+// groups, individual exceptions and the modules the admin enabled.
 export const NAV_SECTIONS: { title: string; items: NavItem[] }[] = [
   {
     title: "Monitoreo",
     items: [
-      { to: "/", label: "Tablero", icon: "dashboard", allow: ALL },
-      { to: "/inventario", label: "Inventario", icon: "inventory", allow: ALL },
-      { to: "/movimientos", label: "Movimientos", icon: "movements", allow: ALL },
-      { to: "/reportes", label: "Reportes", icon: "reports", allow: ALL },
+      { to: "/", label: "Tablero", icon: "dashboard", perms: ["reports.view"] },
+      { to: "/inventario", label: "Inventario", icon: "inventory", perms: ["inventory.view"] },
+      { to: "/movimientos", label: "Movimientos", icon: "movements", perms: [] },
+      { to: "/reportes", label: "Reportes", icon: "reports", perms: ["reports.view"] },
     ],
   },
   {
     title: "Operación",
     items: [
-      { to: "/conteos", label: "Conteos físicos", icon: "count", allow: can.count },
-      { to: "/etiquetas", label: "Etiquetas QR", icon: "qr", allow: can.manageCatalog },
+      { to: "/conteos", label: "Conteos y ajustes", icon: "count", perms: ["inventory.count", "inventory.approve"] },
+      { to: "/etiquetas", label: "Etiquetas QR", icon: "qr", perms: ["products.manage", "locations.manage"] },
+    ],
+  },
+  {
+    title: "Catálogos",
+    items: [
+      { to: "/productos", label: "Productos", icon: "catalog", perms: ["products.manage"] },
+      { to: "/ubicaciones", label: "Ubicaciones", icon: "location", perms: ["locations.manage"] },
+      { to: "/almacenes", label: "Almacenes", icon: "warehouse", perms: ["warehouses.manage"] },
+      { to: "/clientes", label: "Clientes 3PL", icon: "customers", perms: ["admin.customers"] },
+      { to: "/bitacora", label: "Bitácora", icon: "audit", perms: ["audit.view"] },
     ],
   },
   {
     title: "Administración",
     items: [
-      { to: "/productos", label: "Productos", icon: "catalog", allow: can.manageCatalog },
-      { to: "/ubicaciones", label: "Ubicaciones", icon: "location", allow: can.manageCatalog },
-      { to: "/almacenes", label: "Almacenes", icon: "warehouse", allow: can.admin },
-      { to: "/clientes", label: "Clientes 3PL", icon: "customers", allow: can.admin },
-      { to: "/usuarios", label: "Usuarios", icon: "users", allow: can.admin },
-      { to: "/bitacora", label: "Bitácora", icon: "audit", allow: can.audit },
-      { to: "/empresa", label: "Empresa", icon: "settings", allow: can.admin },
+      { to: "/modulos", label: "Módulos", icon: "puzzle", perms: ["admin.modules"] },
+      { to: "/roles", label: "Roles y permisos", icon: "shield", perms: ["admin.roles"] },
+      { to: "/grupos", label: "Grupos", icon: "customers", perms: ["admin.roles"] },
+      { to: "/usuarios", label: "Usuarios", icon: "users", perms: ["admin.users"] },
+      { to: "/empresa", label: "Empresa", icon: "settings", perms: ["admin.company"] },
     ],
   },
 ];
+
+export const ROUTE_PERMS: Record<string, string[]> = Object.fromEntries(
+  NAV_SECTIONS.flatMap(s => s.items).map(i => [i.to, i.perms]),
+);
 
 function WarehousePicker() {
   const { warehouseId, setWarehouseId } = useWarehouseFilter();
@@ -68,10 +80,12 @@ function WarehousePicker() {
 
 export function Layout() {
   const session = useSession();
-  const { logout } = useAuth();
+  const { logout, refresh } = useAuth();
   const role = session.user.role;
   const [menuOpen, setMenuOpen] = useState(false);
   const location = useLocation();
+  // Pick up permission changes when the user moves around the portal.
+  useEffect(() => { refresh(); }, [location.pathname, refresh]);
   useEffect(() => setMenuOpen(false), [location.pathname]);
 
   return (
@@ -87,7 +101,7 @@ export function Layout() {
         </div>
         <nav className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-4">
           {NAV_SECTIONS.map(section => {
-            const items = section.items.filter(i => i.allow(role));
+            const items = section.items.filter(i => !i.perms.length || hasPermission(session, ...i.perms));
             if (!items.length) return null;
             return (
               <div key={section.title} className="mt-4">

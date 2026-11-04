@@ -27,7 +27,7 @@ export function applyPatch(doc: any, patch: Record<string, unknown>, fields: rea
 
 export async function audit(
   auth: AuthPayload,
-  entry: { action: AuditAction; entity: AuditEntity; entityId?: unknown; label?: string; changes?: AuditChange[] },
+  entry: { action: AuditAction; entity: AuditEntity; entityId?: unknown; label?: string; reason?: string; changes?: AuditChange[] },
 ): Promise<void> {
   await AuditLog.create({ companyId: auth.companyId, userId: auth.sub, userName: auth.name, ...entry });
 }

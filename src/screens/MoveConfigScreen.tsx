@@ -1,17 +1,25 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, ActivityIndicator, Pressable } from "react-native";
-import { Button, Input, Icon } from "../components/ui";
+import { Button, Input, Icon, SelectField } from "../components/ui";
 import WarehouseMap from "../components/WarehouseMap";
-import type { MoveType, Location } from "../types";
+import type { MoveType, Location, ModuleInfo, Warehouse } from "../types";
 import { fetchLocations, fetchOccupancy } from "../services/locations";
+import { fetchWarehouses } from "../services/warehouses";
+import { moduleSetting } from "../services/modules";
 import { ApiError } from "../services/api";
 
 interface Props {
   token: string;
-  warehouseId: string;
+  warehouse: Warehouse;
   moveType: MoveType;
-  onStart: (origin?: Location, destination?: Location, reference?: string) => void;
+  /** Raw company modules, for their settings (referencia obligatoria, transferencias entre almacenes). */
+  modules: ModuleInfo[];
+  /** Warehouses the user may operate; null = all. */
+  allowedWarehouseIds: string[] | null;
+  onStart: (origin?: Location, destination?: Location, reference?: string, destinationWarehouse?: Warehouse) => void;
 }
+
+const TYPE_MODULE: Record<MoveType, string> = { entry: "inbound", exit: "outbound", transfer: "transfer" };
 
 const TYPE_LABELS: Record<MoveType, { title: string; desc: string; icon: string }> = {
   entry: { title: "Entrada de mercancía", desc: "Toca en el plano dónde se almacenará la mercancía.", icon: "entry" },
@@ -55,8 +63,11 @@ function SideCard({ side, location, active, onPress }: { side: Side; location?: 
   );
 }
 
-export default function MoveConfigScreen({ token, warehouseId, moveType, onStart }: Props) {
+export default function MoveConfigScreen({ token, warehouse, moveType, modules, allowedWarehouseIds, onStart }: Props) {
+  const warehouseId = warehouse.id;
   const { title, desc, icon } = TYPE_LABELS[moveType];
+  const referenceRequired = moduleSetting(modules, TYPE_MODULE[moveType], "requireReference") === true;
+  const interWarehouse = moveType === "transfer" && moduleSetting(modules, "transfer", "allowInterWarehouse") !== false;
   const [locations, setLocations] = useState<Location[] | null>(null);
   const [occupancy, setOccupancy] = useState<Map<string, number>>(new Map());
   const [loadError, setLoadError] = useState('');
@@ -64,6 +75,10 @@ export default function MoveConfigScreen({ token, warehouseId, moveType, onStart
   const [dest, setDest] = useState<Location | undefined>();
   const [reference, setReference] = useState("");
   const [error, setError] = useState("");
+  // Transfer between warehouses (§4.5.6): destination warehouse and its locations.
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+  const [destWarehouse, setDestWarehouse] = useState<Warehouse>(warehouse);
+  const [destLocations, setDestLocations] = useState<Location[] | null>(null);
 
   const needsOrigin = moveType === "exit" || moveType === "transfer";
   const needsDest = moveType === "entry" || moveType === "transfer";
@@ -80,6 +95,23 @@ export default function MoveConfigScreen({ token, warehouseId, moveType, onStart
       .catch(() => {});
     return () => { cancelled = true; };
   }, [token, warehouseId]);
+
+  useEffect(() => {
+    if (!interWarehouse) return;
+    fetchWarehouses(token)
+      .then(list => setWarehouses(list.filter(w => w.state === "active" && (!allowedWarehouseIds || allowedWarehouseIds.includes(w.id)))))
+      .catch(() => {});
+  }, [token, interWarehouse, allowedWarehouseIds]);
+
+  useEffect(() => {
+    if (destWarehouse.id === warehouseId) { setDestLocations(null); return; }
+    let cancelled = false;
+    setDestLocations(null);
+    fetchLocations(token, destWarehouse.id)
+      .then(locs => { if (!cancelled) setDestLocations(locs); })
+      .catch(err => { if (!cancelled) setLoadError(err instanceof ApiError ? err.message : "No se pudieron cargar las ubicaciones del almacén destino."); });
+    return () => { cancelled = true; };
+  }, [token, destWarehouse, warehouseId]);
 
   function handleSelect(location: Location) {
     setError("");
@@ -108,12 +140,27 @@ export default function MoveConfigScreen({ token, warehouseId, moveType, onStart
       setError("El origen y destino no pueden ser la misma ubicación.");
       return;
     }
+    if (referenceRequired && !reference.trim()) {
+      setError("Tu empresa exige una referencia (documento o motivo) para este movimiento.");
+      return;
+    }
     setError("");
-    onStart(needsOrigin ? origin : undefined, needsDest ? dest : undefined, reference || undefined);
+    onStart(
+      needsOrigin ? origin : undefined,
+      needsDest ? dest : undefined,
+      reference.trim() || undefined,
+      moveType === "transfer" ? destWarehouse : undefined,
+    );
   }
 
   const style = SIDE_STYLE[active];
   const other = active === "origin" ? dest : origin;
+  // Transfer between warehouses: the plan follows the side being picked.
+  const mapWarehouse = active === "dest" ? destWarehouse : warehouse;
+  const mapLocations = mapWarehouse.id === warehouseId ? locations : destLocations;
+  const mapTitle = !(needsOrigin && needsDest)
+    ? "Plano del almacén"
+    : `Plano · eligiendo ${style.label.toLowerCase()}${destWarehouse.id !== warehouseId ? ` en ${mapWarehouse.name}` : ""}`;
 
   return (
     <View className="flex-1 bg-[#F8FAFC]">
@@ -138,7 +185,7 @@ export default function MoveConfigScreen({ token, warehouseId, moveType, onStart
           </View>
         )}
 
-        {loadError && (
+        {!!loadError && (
           <View className="flex-row items-center gap-2 bg-[#FEE2E2] px-4 py-3 rounded-[10px]">
             <Icon name="warning" size={16} color="#7F1D1D" />
             <Text className="text-sm text-[#7F1D1D] flex-1">{loadError}</Text>
@@ -152,23 +199,48 @@ export default function MoveConfigScreen({ token, warehouseId, moveType, onStart
               {needsDest && <SideCard side="dest" location={dest} active={active === "dest"} onPress={() => setActive("dest")} />}
             </View>
 
+            {interWarehouse && warehouses.length > 1 && (
+              <View>
+                <Text className="text-xs font-semibold uppercase tracking-wide text-[#64748B] mb-2">
+                  Almacén destino
+                </Text>
+                <View className="bg-white rounded-2xl border border-[#E2E8F0] shadow-sm shadow-slate-900/5 flex-row items-center px-4 py-2.5">
+                  <SelectField
+                    value={destWarehouse.name}
+                    placeholder="Elige almacén"
+                    options={warehouses.map(w => w.name)}
+                    onSelect={name => {
+                      const next = warehouses.find(w => w.name === name);
+                      if (next && next.id !== destWarehouse.id) { setDestWarehouse(next); setDest(undefined); setActive("dest"); }
+                    }}
+                  />
+                  <Icon name="chevron_down" size={14} color="#94A3B8" />
+                </View>
+              </View>
+            )}
+
             <View>
               <Text className="text-xs font-semibold uppercase tracking-wide text-[#64748B] mb-2">
-                {needsOrigin && needsDest ? `Plano · eligiendo ${style.label.toLowerCase()}` : "Plano del almacén"}
+                {mapTitle}
               </Text>
-              <WarehouseMap
-                locations={locations}
-                occupancy={occupancy}
-                selectedId={(active === "origin" ? origin : dest)?.id}
-                blockedId={moveType === "transfer" ? other?.id : undefined}
-                blockedLabel={active === "origin" ? "Destino" : "Origen"}
-                accent={style.accent}
-                onSelect={handleSelect}
-              />
+              {mapLocations ? (
+                <WarehouseMap
+                  key={mapWarehouse.id}
+                  locations={mapLocations}
+                  occupancy={occupancy}
+                  selectedId={(active === "origin" ? origin : dest)?.id}
+                  blockedId={moveType === "transfer" ? other?.id : undefined}
+                  blockedLabel={active === "origin" ? "Destino" : "Origen"}
+                  accent={style.accent}
+                  onSelect={handleSelect}
+                />
+              ) : (
+                <ActivityIndicator size="small" color="#4F46E5" />
+              )}
             </View>
 
             <Input
-              label="Referencia (opcional)"
+              label={referenceRequired ? "Referencia (obligatoria)" : "Referencia (opcional)"}
               placeholder="Ej. OC-4421, REQ-0912..."
               value={reference}
               onChange={setReference}
@@ -177,7 +249,7 @@ export default function MoveConfigScreen({ token, warehouseId, moveType, onStart
           </>
         )}
 
-        {error && (
+        {!!error && (
           <View className="flex-row items-center gap-2 bg-[#FEE2E2] px-4 py-3 rounded-[10px]">
             <Icon name="warning" size={16} color="#7F1D1D" />
             <Text className="text-sm text-[#7F1D1D] flex-1">{error}</Text>

@@ -25,6 +25,9 @@ const movementSchema = new Schema({
   status: { type: String, enum: MOVEMENT_STATUSES, default: "completed" },
   companyId: { type: Schema.Types.ObjectId, ref: "Company", required: true },
   warehouseId: { type: Schema.Types.ObjectId, ref: "Warehouse", required: true },
+  // Transfer between warehouses (§4.5.6): warehouseId is the origin, this the
+  // destination. Absent for everything else (same-warehouse transfers too).
+  destinationWarehouseId: { type: Schema.Types.ObjectId, ref: "Warehouse" },
   userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
   reference: { type: String },
   lines: { type: [movementLineSchema], required: true, validate: (v: unknown[]) => v.length > 0 },
@@ -38,6 +41,7 @@ const movementSchema = new Schema({
 }, { timestamps: { createdAt: "createdAt", updatedAt: false } });
 
 movementSchema.index({ companyId: 1, createdAt: -1 });
+movementSchema.index({ companyId: 1, destinationWarehouseId: 1 }, { partialFilterExpression: { destinationWarehouseId: { $exists: true } } });
 movementSchema.index(
   { companyId: 1, clientId: 1 },
   { unique: true, partialFilterExpression: { clientId: { $type: "string" } } },

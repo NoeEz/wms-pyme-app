@@ -33,6 +33,9 @@ export function Icon({ name, size = 20, className = "", color = "currentColor" }
     wifi: <Path strokeLinecap="round" strokeLinejoin="round" d="M8.288 15.038a5.25 5.25 0 017.424 0M5.106 11.856c3.807-3.808 9.98-3.808 13.788 0M1.924 8.674c5.565-5.565 14.587-5.565 20.152 0M12.53 18.22l-.53.53-.53-.53a.75.75 0 011.06 0z" />,
     wifi_off: <Path strokeLinecap="round" strokeLinejoin="round" d="M3 3l18 18m-6.857-8.857A5.232 5.232 0 0112 12a5.25 5.25 0 015.21 4.57M5.1 11.846a9.016 9.016 0 0113.8 0M1.924 8.674a13.477 13.477 0 012.01-1.767M20.066 8.674a13.5 13.5 0 00-16.142 0M12.53 18.22l-.53.53-.53-.53a.75.75 0 011.06 0z" />,
     clock: <Path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />,
+    eye: <Path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z M15 12a3 3 0 11-6 0 3 3 0 016 0z" />,
+    eye_off: <Path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" />,
+    lock: <Path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />,
     user: <Path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />,
     location: <Path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />,
     logout: <Path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />,
@@ -75,7 +78,7 @@ export function Badge({ variant = "muted", children, icon }: {
   const { bg, text, iconColor } = styles[variant];
   return (
     <View className={`flex-row items-center gap-1 px-2 py-0.5 rounded-full self-start ${bg}`}>
-      {icon && <Icon name={icon} size={12} color={iconColor} />}
+      {!!icon && <Icon name={icon} size={12} color={iconColor} />}
       <Text className={`text-xs font-medium ${text}`}>{children}</Text>
     </View>
   );
@@ -170,9 +173,12 @@ export function Input({
   autoFocus?: boolean;
   className?: string;
 }) {
+  // Password fields get an eye button to show what was typed.
+  const isPassword = type === "password";
+  const [showPassword, setShowPassword] = useState(false);
   return (
     <View className={`flex-col gap-1 ${className}`}>
-      {label && <Text className="text-sm font-medium text-[#475569]">{label}</Text>}
+      {!!label && <Text className="text-sm font-medium text-[#475569]">{label}</Text>}
       <View className="relative justify-center">
         {icon && (
           <View className="absolute left-3 z-10 text-[#94A3B8]">
@@ -185,22 +191,34 @@ export function Input({
           placeholder={placeholder}
           placeholderTextColor="#94A3B8"
           autoFocus={autoFocus}
-          secureTextEntry={type === "password"}
+          secureTextEntry={isPassword && !showPassword}
+          autoCorrect={isPassword ? false : undefined}
           keyboardType={type === "email" ? "email-address" : type === "number" ? "numeric" : "default"}
           autoCapitalize="none"
           className={`w-full border rounded-xl bg-white text-[#0F172A]
-            ${icon ? "pl-10" : "pl-4"} pr-4
+            ${icon ? "pl-10" : "pl-4"} ${isPassword ? "pr-12" : "pr-4"}
             ${large ? "py-4 text-base min-h-[56px]" : "py-3 text-sm min-h-[48px]"}
             ${error ? "border-[#DC2626]" : "border-[#CBD5E1]"}`}
         />
+        {isPassword && (
+          <Pressable
+            onPress={() => setShowPassword(v => !v)}
+            className="absolute right-1 h-11 w-11 items-center justify-center rounded-lg active:bg-[#F1F5F9]"
+            accessibilityRole="button"
+            accessibilityLabel={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+            hitSlop={6}
+          >
+            <Icon name={showPassword ? "eye_off" : "eye"} size={20} color="#64748B" />
+          </Pressable>
+        )}
       </View>
-      {error && (
+      {!!error && (
         <View className="flex-row items-center gap-1">
           <Icon name="warning" size={12} color="#DC2626" />
           <Text className="text-xs text-[#DC2626]">{error}</Text>
         </View>
       )}
-      {hint && !error && <Text className="text-xs text-[#64748B]">{hint}</Text>}
+      {!!hint && !error && <Text className="text-xs text-[#64748B]">{hint}</Text>}
     </View>
   );
 }
@@ -429,7 +447,7 @@ export function EmptyState({ icon, title, description }: {
         <Icon name={icon} size={28} color="#6366F1" />
       </View>
       <Text className="text-sm font-semibold text-[#475569] mb-1 text-center">{title}</Text>
-      {description && <Text className="text-xs text-[#64748B] text-center">{description}</Text>}
+      {!!description && <Text className="text-xs text-[#64748B] text-center">{description}</Text>}
     </View>
   );
 }
