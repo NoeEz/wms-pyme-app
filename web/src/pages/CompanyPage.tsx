@@ -9,7 +9,7 @@ export default function CompanyPage() {
   return (
     <>
       <PageHeader title="Empresa" description="Datos de la empresa y módulos operativos de la app (EPIC-6)." />
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid min-w-0 items-start gap-6 xl:grid-cols-2">
         <CompanyForm />
         <ModulesCard />
       </div>
@@ -41,13 +41,13 @@ function CompanyForm() {
           <Input value={slug} onChange={e => { setSlug(e.target.value.toLowerCase()); setSaved(false); }} className="font-mono" />
         </Field>
         {slugChanged && (
-          <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900">
-            Al cambiar el código, todos tus usuarios deberán escribir <span className="font-mono font-semibold">{slug || "…"}</span> la próxima vez que inicien sesión. Las sesiones abiertas no se cierran.
+          <p className="break-words rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-relaxed text-amber-900">
+            Al cambiar el código, todos tus usuarios deberán escribir <span className="break-all font-mono font-semibold">{slug || "…"}</span> la próxima vez que inicien sesión. Las sesiones abiertas no se cierran.
           </p>
         )}
         {save.isError && <ErrorBox message={errorMessage(save.error)} />}
-        {saved && <p className="text-sm text-emerald-700">Cambios guardados.</p>}
-        <div className="flex justify-end"><Button loading={save.isPending} disabled={!name.trim() || !slug.trim()} onClick={() => save.mutate()}>Guardar</Button></div>
+        {saved && <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">Cambios guardados.</p>}
+        <div className="flex justify-end border-t border-slate-200 pt-4"><Button loading={save.isPending} disabled={!name.trim() || !slug.trim()} onClick={() => save.mutate()}>Guardar</Button></div>
       </div>
     </Card>
   );
@@ -75,9 +75,9 @@ function ModulesCard() {
         <ul className="flex flex-col divide-y divide-slate-100">
           {modules.data.map(m => (
             <li key={m.key} className="flex items-center gap-4 py-3">
-              <div className="flex-1">
+              <div className="min-w-0 flex-1 break-words">
                 <p className="text-sm font-medium text-slate-800">{m.label}</p>
-                <p className="text-xs text-slate-500">{m.description}</p>
+                <p className="text-xs leading-relaxed text-slate-500">{m.description}</p>
               </div>
               <Toggle checked={m.enabled} disabled={save.isPending} onChange={v => toggle(m.key, v)} label={m.label} />
             </li>

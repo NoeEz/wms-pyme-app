@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
+import "./labels.css";
 import { useLocations, useProducts, useWarehouseFilter, useWarehouses } from "../lib/data";
 import { Button, Card, Field, Input, PageHeader, SearchInput, Select } from "../components/ui";
 
@@ -67,7 +68,7 @@ export default function LabelsPage() {
           actions={<Button icon="print" disabled={!labels.length} onClick={() => window.print()}>Imprimir {labels.length || ""}</Button>}
         />
         <Card className="mb-6">
-          <div className="grid gap-4 md:grid-cols-4">
+          <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 [&>label]:min-w-0">
             <Field label="Etiquetas de">
               <Select value={kind} onChange={e => setKind(e.target.value as "products" | "locations")}>
                 <option value="products">Productos</option>
@@ -85,28 +86,28 @@ export default function LabelsPage() {
             )}
             <Field label="Copias de cada una"><Input type="number" min={1} max={50} value={copies} onChange={e => setCopies(e.target.value)} /></Field>
           </div>
-          <div className="mt-4 flex flex-wrap items-center gap-3">
-            <SearchInput value={search} onChange={setSearch} className="min-w-60 flex-1" />
+          <div className="mt-6 flex min-w-0 flex-col items-stretch gap-3 border-t border-slate-200 pt-5 sm:flex-row sm:flex-wrap sm:items-center [&>button]:min-h-10 [&>button]:rounded-lg [&>button]:border [&>button]:border-slate-200 [&>button]:bg-slate-50 [&>button]:px-3 [&>button]:text-slate-700 [&>button:hover]:border-indigo-200 [&>button:hover]:bg-indigo-50 [&>button:hover]:text-indigo-700">
+            <SearchInput value={search} onChange={setSearch} className="w-full min-w-0 sm:min-w-60 sm:flex-1" />
             <Button variant="ghost" size="sm" onClick={() => setPicked(new Set(options.map(o => o.id)))}>Seleccionar todo</Button>
             <Button variant="ghost" size="sm" onClick={() => setPicked(new Set())}>Ninguno</Button>
           </div>
-          <ul className="mt-3 grid max-h-64 gap-1 overflow-y-auto sm:grid-cols-2 lg:grid-cols-3">
+          <ul className="mt-4 grid max-h-80 min-w-0 grid-cols-1 gap-3 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50/60 p-3 sm:grid-cols-2 xl:grid-cols-3">
             {options.map(o => (
               <li key={o.id}>
-                <label className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-slate-50">
-                  <input type="checkbox" checked={picked.has(o.id)} onChange={() => toggle(o.id)} className="h-4 w-4 accent-indigo-600" />
-                  <span className="font-mono text-xs font-medium">{o.title}</span>
-                  <span className="truncate text-xs text-slate-500">{o.subtitle}</span>
+                <label className="grid min-h-20 min-w-0 cursor-pointer grid-cols-[auto_minmax(0,1fr)] content-center items-start gap-x-3 gap-y-1 rounded-lg border border-slate-200 bg-white px-3 py-3 text-sm transition-colors hover:border-indigo-300 has-[:checked]:border-indigo-400 has-[:checked]:bg-indigo-50">
+                  <input type="checkbox" checked={picked.has(o.id)} onChange={() => toggle(o.id)} className="row-span-2 mt-0.5 h-4 w-4 shrink-0 accent-indigo-600" />
+                  <span className="min-w-0 break-all font-mono text-xs font-semibold leading-relaxed text-slate-900">{o.title}</span>
+                  <span className="min-w-0 break-words text-xs leading-relaxed text-slate-600">{o.subtitle}</span>
                 </label>
               </li>
             ))}
-            {!options.length && <li className="text-sm text-slate-500">Sin resultados.</li>}
+            {!options.length && <li className="col-span-full px-4 py-8 text-center text-sm text-slate-500">Sin resultados.</li>}
           </ul>
         </Card>
       </div>
 
       {labels.length > 0 && (
-        <div className="print-area rounded-2xl border border-slate-200 bg-white p-6">
+        <div className="print-area qr-label-preview rounded-2xl border border-slate-200 bg-white p-6">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {labels.map(l => (
               <div key={l.key} className="flex break-inside-avoid items-center gap-3 rounded-lg border border-dashed border-slate-300 p-3">

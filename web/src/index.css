@@ -1,10 +1,30 @@
 @import "tailwindcss";
 
-/* Same palette as the mobile app (Tailwind's slate / indigo / emerald /
-   amber / red match its hex values), with the system font stack. */
+/* Portal visual tokens. Native styles remain in the mobile UI kit. */
 @theme {
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  --color-indigo-50: #eff6ff;
+  --color-indigo-100: #dbeafe;
+  --color-indigo-200: #bfdbfe;
+  --color-indigo-300: #93c5fd;
+  --color-indigo-400: #60a5fa;
+  --color-indigo-500: #2563eb;
+  --color-indigo-600: #1d4ed8;
+  --color-indigo-700: #1e40af;
+  --color-indigo-800: #1e3a8a;
+  --color-indigo-900: #172554;
+  --color-slate-50: #f4f6fa;
+  --color-slate-100: #edf1f7;
+  --color-slate-200: #d7dfea;
+  --color-slate-300: #b8c5d6;
+  --color-slate-400: #64748b;
+  --color-slate-500: #52637a;
+  --color-slate-600: #425570;
+  --color-slate-700: #314560;
+  --color-slate-800: #203650;
+  --color-slate-900: #172b4d;
+  --color-slate-950: #14243a;
 }
 
 html, body, #root {
@@ -15,6 +35,15 @@ body {
   background: var(--color-slate-50);
   color: var(--color-slate-900);
   -webkit-font-smoothing: antialiased;
+  font-family: var(--font-sans);
+  line-height: 1.5;
+}
+
+@layer base {
+  :where(button, a, input, select, textarea):focus-visible {
+    outline: 2px solid var(--color-indigo-600);
+    outline-offset: 3px;
+  }
 }
 
 .tabular {
@@ -25,6 +54,9 @@ body {
 @media print {
   body { background: white; }
   .no-print { display: none !important; }
+  /* Remove screen navigation gutters without changing the label sheet itself. */
+  .portal-main { padding-left: 0 !important; }
+  .portal-content { max-width: none !important; margin: 0 !important; padding: 0 !important; }
   .print-area { padding: 0 !important; margin: 0 !important; box-shadow: none !important; border: 0 !important; }
   @page { margin: 10mm; }
 }

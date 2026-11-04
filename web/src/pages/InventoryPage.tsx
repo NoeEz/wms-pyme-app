@@ -87,22 +87,22 @@ export default function InventoryPage() {
         }
       />
 
-      <div className="mb-4 flex flex-wrap gap-2">
+      <div className="mb-5 grid min-w-0 grid-cols-1 gap-2 min-[400px]:grid-cols-2 sm:grid-cols-3 xl:grid-cols-5">
         {(["", "stockout", "low", "slow", "ok"] as const).map(s => (
           <button
             key={s || "all"} onClick={() => setStatus(s)} aria-pressed={status === s}
-            className={`rounded-full border px-3 py-1 text-xs font-medium ${status === s ? "border-slate-900 bg-slate-900 text-white" : "border-slate-300 bg-white text-slate-600 hover:bg-slate-50"}`}
+            className={`flex min-h-12 min-w-0 flex-row items-center justify-between gap-3 rounded-lg border px-3 py-2.5 text-left text-sm font-semibold transition-colors ${status === s ? "border-indigo-600 bg-indigo-600 text-white shadow-sm" : "border-slate-200 bg-white text-slate-700 hover:border-indigo-300 hover:bg-indigo-50"}`}
           >
-            {s ? STATUS_LABEL[s] : "Todos"} <span className="tabular opacity-70">{s ? counts[s] : rows.length}</span>
+            {s ? STATUS_LABEL[s] : "Todos"} <span className="tabular block max-w-full overflow-x-auto whitespace-nowrap text-lg font-semibold tracking-tight">{s ? counts[s] : rows.length}</span>
           </button>
         ))}
       </div>
 
-      <Card padded={false}>
-        <div className="flex flex-wrap gap-3 border-b border-slate-100 p-4">
-          <SearchInput value={search} onChange={setSearch} placeholder="Buscar por SKU o nombre" className="min-w-60 flex-1" />
+      <Card padded={false} className="overflow-hidden [&_th]:whitespace-nowrap [&_td]:whitespace-nowrap [&_td:first-child]:min-w-64 [&_td:first-child]:max-w-96 [&_td:first-child]:whitespace-normal">
+        <div className="flex min-w-0 flex-col gap-3 border-b border-slate-200 bg-slate-50/60 p-4 sm:flex-row sm:flex-wrap sm:p-5">
+          <SearchInput value={search} onChange={setSearch} placeholder="Buscar por SKU o nombre" className="w-full min-w-0 sm:min-w-60 sm:flex-1" />
           {!isClient && customers.length > 0 && (
-            <Select value={customer} onChange={e => setCustomer(e.target.value)} className="w-60">
+            <Select value={customer} onChange={e => setCustomer(e.target.value)} className="w-full sm:w-60">
               <option value="">Todos los dueños</option>
               <option value="own">Mercancía propia</option>
               {customers.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
@@ -127,13 +127,13 @@ export default function InventoryPage() {
             </thead>
             <tbody>
               {filtered.map(r => (
-                <tr key={r.productId} onClick={() => setSelected(r)} className="cursor-pointer hover:bg-slate-50">
+                <tr key={r.productId} onClick={() => setSelected(r)} className="cursor-pointer">
                   <td className={td}>
-                    <p className="font-medium text-slate-800">{r.name}</p>
-                    <p className="font-mono text-xs text-slate-500">{r.sku}</p>
+                    <p className="font-semibold leading-relaxed text-slate-900">{r.name}</p>
+                    <p className="mt-1 break-all font-mono text-xs leading-relaxed text-slate-500">{r.sku}</p>
                   </td>
-                  {!isClient && customers.length > 0 && <td className={td}>{r.customer ? <Badge variant="info">{r.customer.code}</Badge> : <span className="text-xs text-slate-400">Propio</span>}</td>}
-                  <td className={`${td} tabular text-right font-medium`}>{fmtNumber(r.onHand)} <span className="text-xs font-normal text-slate-400">{r.unit}</span></td>
+                  {!isClient && customers.length > 0 && <td className={td}>{r.customer ? <Badge variant="info">{r.customer.code}</Badge> : <span className="text-xs text-slate-500">Propio</span>}</td>}
+                  <td className={`${td} tabular text-right font-semibold text-slate-900`}>{fmtNumber(r.onHand)} <span className="text-xs font-normal text-slate-400">{r.unit}</span></td>
                   <td className={`${td} tabular text-right`}>{fmtNumber(r.threshold)}</td>
                   <td className={`${td} tabular text-right`}>{fmtMoney(r.value)}</td>
                   <td className={`${td} tabular text-right`}>{r.daysOfSupply == null ? "—" : fmtNumber(r.daysOfSupply, 1)}</td>
@@ -163,38 +163,38 @@ function ProductDetail({ row, onClose }: { row: StockRow; onClose: () => void })
 
   return (
     <Modal open title={row.name} onClose={onClose} wide>
-      <div className="mb-4 flex flex-wrap items-center gap-2 text-sm text-slate-600">
-        <span className="font-mono">{row.sku}</span>·<span>{TRACKING_LABEL[row.tracking]}</span>
+      <div className="mb-5 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-slate-200 pb-5 text-sm leading-relaxed text-slate-600">
+        <span className="break-all rounded-md bg-slate-100 px-2 py-1 font-mono text-xs font-medium text-slate-700">{row.sku}</span>·<span>{TRACKING_LABEL[row.tracking]}</span>
         {row.customer && <Badge variant="info">{row.customer.name}</Badge>}
         <StatusBadge status={row.status} />
       </div>
-      <dl className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <dl className="mb-6 grid min-w-0 grid-cols-1 gap-3 min-[400px]:grid-cols-2">
         {[["Existencia", `${fmtNumber(row.onHand)} ${row.unit}`], ["Mínimo", fmtNumber(row.threshold)], ["Valor", fmtMoney(row.value)], ["Salidas 30 días", fmtNumber(row.outboundUnits)]].map(([k, v]) => (
-          <div key={k} className="rounded-xl bg-slate-50 px-3 py-2"><dt className="text-xs text-slate-500">{k}</dt><dd className="tabular font-semibold text-slate-900">{v}</dd></div>
+          <div key={k} className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 p-4 [container-type:inline-size]"><dt className="text-xs font-medium text-slate-500">{k}</dt><dd className="tabular mt-2 max-w-full overflow-x-auto whitespace-nowrap text-[clamp(1rem,7cqi,1.25rem)] font-semibold tracking-tight text-slate-900">{v}</dd></div>
         ))}
       </dl>
       {query.isPending ? <Loading /> : query.isError ? <ErrorBox message={errorMessage(query.error)} /> : (
-        <div className="grid gap-5 md:grid-cols-2">
+        <div className="grid min-w-0 grid-cols-1 items-start gap-5 md:grid-cols-2 [&>div]:min-w-0">
           <div>
-            <h3 className="mb-2 text-sm font-semibold text-slate-800">Por ubicación</h3>
+            <h3 className="mb-3 border-l-2 border-indigo-600 pl-3 text-sm font-semibold text-slate-900">Por ubicación</h3>
             {balances.length === 0 ? <p className="text-sm text-slate-500">Sin existencias.</p> : (
-              <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200">
+              <ul className="divide-y divide-slate-200 rounded-xl border border-slate-200 bg-white">
                 {balances.map(b => (
-                  <li key={b._id} className="flex items-center justify-between px-3 py-2 text-sm">
-                    <span><span className="font-mono">{b.locationId.code}</span> <span className="text-xs text-slate-500">· {warehouseName(b.locationId.warehouseId)}</span></span>
-                    <span className="tabular font-medium">{fmtNumber(b.available)}</span>
+                  <li key={b._id} className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-3.5 text-sm [&>span:first-child]:min-w-0 [&>span:first-child]:break-words">
+                    <span><span className="break-all rounded-md bg-slate-100 px-2 py-1 font-mono text-xs font-medium text-slate-700">{b.locationId.code}</span> <span className="text-xs text-slate-500">· {warehouseName(b.locationId.warehouseId)}</span></span>
+                    <span className="tabular shrink-0 whitespace-nowrap font-semibold text-slate-900">{fmtNumber(b.available)}</span>
                   </li>
                 ))}
               </ul>
             )}
           </div>
           <div>
-            <h3 className="mb-2 text-sm font-semibold text-slate-800">Últimos movimientos</h3>
+            <h3 className="mb-3 border-l-2 border-indigo-600 pl-3 text-sm font-semibold text-slate-900">Últimos movimientos</h3>
             {query.data.recentMovements.length === 0 ? <p className="text-sm text-slate-500">Sin movimientos.</p> : (
-              <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200">
+              <ul className="divide-y divide-slate-200 rounded-xl border border-slate-200 bg-white">
                 {query.data.recentMovements.map(m => (
-                  <li key={m._id} className="flex items-center justify-between px-3 py-2 text-sm">
-                    <span><span className="font-mono text-xs">{m.folio}</span> <span className="text-xs text-slate-500">· {MOVEMENT_LABEL[m.type]}</span></span>
+                  <li key={m._id} className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-3.5 text-sm [&>span:first-child]:min-w-0 [&>span:first-child]:break-words">
+                    <span><span className="break-all font-mono text-xs font-medium text-slate-800">{m.folio}</span> <span className="text-xs text-slate-500">· {MOVEMENT_LABEL[m.type]}</span></span>
                     <span className="text-xs text-slate-500">{fmtDateTime(m.createdAt)}</span>
                   </li>
                 ))}
@@ -203,8 +203,8 @@ function ProductDetail({ row, onClose }: { row: StockRow; onClose: () => void })
           </div>
         </div>
       )}
-      <div className="mt-5 text-right">
-        <Link to={`/reportes?reporte=kardex&producto=${row.productId}`} className="text-sm font-medium text-indigo-600 hover:underline">Ver kardex completo →</Link>
+      <div className="mt-6 flex justify-end border-t border-slate-200 pt-5">
+        <Link to={`/reportes?reporte=kardex&producto=${row.productId}`} className="inline-flex min-h-11 items-center rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-700 hover:border-indigo-300 hover:bg-indigo-100">Ver kardex completo →</Link>
       </div>
     </Modal>
   );

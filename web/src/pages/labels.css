@@ -1,0 +1,51 @@
+/* Screen preview only: the original label grid and print geometry are preserved. */
+@media screen {
+  .qr-label-preview {
+    min-width: 0;
+    padding: 16px;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px -4px rgb(23 43 77 / 12%);
+  }
+
+  .qr-label-preview > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+
+  .qr-label-preview > div > div {
+    min-width: 0;
+    align-items: flex-start;
+    padding: 16px;
+    border-style: solid;
+    background: white;
+  }
+
+  .qr-label-preview img {
+    flex-shrink: 0;
+    /* No filters, overlays or changes to the QR image dimensions. */
+  }
+
+  .qr-label-preview > div > div > div {
+    overflow-wrap: anywhere;
+  }
+
+  .qr-label-preview p {
+    line-height: 1.6;
+  }
+
+  @media (min-width: 768px) {
+    .qr-label-preview {
+      padding: 24px;
+    }
+
+    .qr-label-preview > div {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (min-width: 1536px) {
+    .qr-label-preview > div {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+}

@@ -39,13 +39,13 @@ function legendText(value: string) {
 export function ChartFrame({ chart, table }: { chart: ReactNode; table: ReactNode }) {
   const [asTable, setAsTable] = useState(false);
   return (
-    <div>
-      <div className="mb-2 flex justify-end">
-        <button onClick={() => setAsTable(v => !v)} className="text-xs font-medium text-indigo-600 hover:underline">
+    <div className="min-w-0">
+      <div className="mb-4 flex justify-end border-b border-slate-100 pb-3">
+        <button onClick={() => setAsTable(v => !v)} className="min-h-9 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50">
           {asTable ? "Ver gráfica" : "Ver tabla"}
         </button>
       </div>
-      {asTable ? <div className="max-h-72 overflow-y-auto">{table}</div> : chart}
+      {asTable ? <div className="max-h-80 min-w-0 overflow-auto">{table}</div> : chart}
     </div>
   );
 }
@@ -56,7 +56,7 @@ export function MovementsByDayChart({ series }: { series: Overview["movements"][
   return (
     <ChartFrame
       chart={
-        <div className="h-72">
+        <div className="h-72 min-w-0 sm:h-80">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={series} margin={{ top: 8, right: 8, bottom: 0, left: -16 }} barCategoryGap="20%">
               {GRID}
@@ -105,7 +105,7 @@ export function UnitsFlowChart({ series }: { series: Overview["movements"]["seri
   return (
     <ChartFrame
       chart={
-        <div className="h-72">
+        <div className="h-72 min-w-0 sm:h-80">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={series} margin={{ top: 8, right: 8, bottom: 0, left: -16 }}>
               {GRID}

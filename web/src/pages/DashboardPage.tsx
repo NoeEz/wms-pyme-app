@@ -9,6 +9,7 @@ import type { MovementType, Overview } from "../lib/types";
 import { Badge, Button, Card, EmptyState, ErrorBox, Loading, PageHeader, Stat, Table, td, th } from "../components/ui";
 import { MovementsByDayChart, UnitsFlowChart } from "../components/charts";
 import { Icon } from "../components/Icon";
+import "./dashboard.css";
 
 const RANGES = [
   { days: 1, label: "Hoy" },
@@ -37,17 +38,17 @@ export default function DashboardPage() {
   const data = query.data;
 
   return (
-    <>
+    <div className="dashboard-overview min-w-0">
       <PageHeader
         title={isClient ? `Tablero · ${session.customer?.name ?? ""}` : "Tablero"}
         description={isClient ? "Tu inventario resguardado en el almacén." : "Indicadores de inventario y operación del almacén."}
         actions={
           <>
-            <div className="flex rounded-xl border border-slate-300 bg-white p-0.5" role="group" aria-label="Periodo">
+            <div className="flex flex-wrap gap-1 rounded-xl border border-slate-200 bg-white p-1" role="group" aria-label="Periodo">
               {RANGES.map(r => (
                 <button
                   key={r.days} onClick={() => setDays(r.days)} aria-pressed={days === r.days}
-                  className={`rounded-lg px-3 py-1.5 text-xs font-medium ${days === r.days ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"}`}
+                  className={`min-h-9 rounded-lg px-3 py-2 text-xs font-semibold ${days === r.days ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"}`}
                 >{r.label}</button>
               ))}
             </div>
@@ -62,30 +63,30 @@ export default function DashboardPage() {
       {query.isPending && <Loading />}
 
       {data && (
-        <div className="flex flex-col gap-6">
+        <div className="flex min-w-0 flex-col gap-5 sm:gap-6">
           <KpiRow data={data} isClient={isClient} />
           <TodayStrip data={data} days={days} />
 
-          <div className="grid gap-6 xl:grid-cols-2">
+          <div className="grid min-w-0 grid-cols-1 gap-5 xl:grid-cols-2 xl:gap-6">
             <Card title="Movimientos por día"><MovementsByDayChart series={data.movements.series} /></Card>
             <Card title="Unidades que entran y salen"><UnitsFlowChart series={data.movements.series} /></Card>
           </div>
 
-          <div className="grid gap-6 xl:grid-cols-3">
+          <div className="grid min-w-0 grid-cols-1 items-start gap-5 xl:grid-cols-2 xl:gap-6">
             <AlertsCard data={data} />
             {data.operators && <OperatorsCard data={data} />}
             <SyncCard data={data} />
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }
 
 function KpiRow({ data, isClient }: { data: Overview; isClient: boolean }) {
   const { stock, flow, accuracy } = data;
   return (
-    <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
+    <div className="dashboard-kpis grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
       <Stat label="Existencias" icon="inventory" value={fmtNumber(stock.units)} hint={`${fmtNumber(stock.skus)} producto${stock.skus === 1 ? "" : "s"} con stock`} />
       <Stat
         label="Valor del inventario" icon="reports" value={fmtMoney(stock.value)}
@@ -126,15 +127,15 @@ function TodayStrip({ data, days }: { data: Overview; days: number }) {
   const totals = data.movements.totals;
   return (
     <Card padded={false}>
-      <div className="grid grid-cols-2 divide-slate-100 sm:grid-cols-4 sm:divide-x">
+      <div className="grid min-w-0 grid-cols-1 divide-y divide-slate-200 min-[400px]:grid-cols-2 lg:grid-cols-4 lg:divide-x lg:divide-y-0">
         {types.map(t => (
-          <div key={t} className="flex items-center gap-3 px-5 py-4">
-            <span className="h-8 w-1.5 rounded-full" style={{ background: MOVEMENT_COLOR[t] }} aria-hidden="true" />
-            <div>
+          <div key={t} className="flex min-w-0 items-start gap-3 px-4 py-5 sm:px-5">
+            <span className="mt-1 h-10 w-1 shrink-0 rounded-full" style={{ background: MOVEMENT_COLOR[t] }} aria-hidden="true" />
+            <div className="min-w-0 flex-1 [overflow-wrap:anywhere]">
               <p className="text-xs text-slate-500">{MOVEMENT_LABEL[t]}s {days === 1 ? "hoy" : `en ${days} días`}</p>
-              <p className="tabular text-lg font-semibold text-slate-900">
+              <p className="tabular mt-1 flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1 text-xl font-semibold text-slate-900">
                 {fmtNumber(totals[t].movements)}
-                <span className="ml-1 text-xs font-normal text-slate-500">· {fmtNumber(totals[t].units)} u</span>
+                <span className="text-xs font-medium text-slate-500">· {fmtNumber(totals[t].units)} u</span>
               </p>
             </div>
           </div>
@@ -156,9 +157,9 @@ function AlertsCard({ data }: { data: Overview }) {
               <Icon name="warning" size={18} className={a.type === "stockout" ? "text-red-600" : "text-amber-600"} />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-slate-800">{a.name}</p>
-                <p className="font-mono text-xs text-slate-500">{a.sku}</p>
+                <p className="break-all font-mono text-xs text-slate-500">{a.sku}</p>
               </div>
-              <div className="text-right">
+              <div className="shrink-0 text-right">
                 <Badge variant={a.type === "stockout" ? "danger" : "warning"}>{a.type === "stockout" ? "Agotado" : "Stock bajo"}</Badge>
                 <p className="tabular mt-1 text-xs text-slate-500">{fmtNumber(a.onHand)} / mín. {fmtNumber(a.threshold)}</p>
               </div>
@@ -205,17 +206,17 @@ function SyncCard({ data }: { data: Overview }) {
   const { sync } = data;
   const lateShare = sync.captured ? sync.late / sync.captured : 0;
   return (
-    <Card title="Sincronización de la app">
+    <Card title="Sincronización de la app" className="xl:col-span-2">
       {sync.captured === 0 ? (
         <p className="text-sm text-slate-500">Aún no hay movimientos capturados desde la app en el periodo.</p>
       ) : (
         <div className="flex flex-col gap-4">
           <p className="text-sm text-slate-600">Tiempo entre que el operador captura un movimiento y llega al servidor (más alto = trabajo sin señal).</p>
-          <dl className="grid grid-cols-3 gap-3 text-center">
+          <dl className="grid min-w-0 grid-cols-1 gap-3 text-center min-[400px]:grid-cols-3">
             {[["Promedio", sync.avgSeconds], ["95 % llega en", sync.p95Seconds], ["Máximo", sync.maxSeconds]].map(([label, v]) => (
-              <div key={label as string} className="rounded-xl bg-slate-50 px-2 py-3">
+              <div key={label as string} className="min-w-0 rounded-lg border border-slate-200 bg-slate-50 px-3 py-4">
                 <dt className="text-xs text-slate-500">{label}</dt>
-                <dd className="tabular mt-1 text-lg font-semibold text-slate-900">{fmtDuration(v as number | null)}</dd>
+                <dd className="tabular mt-2 whitespace-nowrap text-lg font-semibold text-slate-900">{fmtDuration(v as number | null)}</dd>
               </div>
             ))}
           </dl>

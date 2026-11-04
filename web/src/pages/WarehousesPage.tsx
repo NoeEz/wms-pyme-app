@@ -11,7 +11,7 @@ export default function WarehousesPage() {
   return (
     <>
       <PageHeader title="Almacenes" description="Los operadores eligen el almacén al iniciar su turno en la app." actions={<Button icon="plus" onClick={() => setEditing("new")}>Nuevo almacén</Button>} />
-      <Card padded={false}>
+      <Card padded={false} className="overflow-hidden [&_th]:whitespace-nowrap [&_td.tabular]:whitespace-nowrap [&_td:first-child]:font-medium">
         {warehouses.isPending ? <Loading /> : warehouses.isError ? <div className="p-4"><ErrorBox message={errorMessage(warehouses.error)} /></div> : !warehouses.data.length ? (
           <EmptyState icon="warehouse" title="Sin almacenes" />
         ) : (
@@ -19,7 +19,7 @@ export default function WarehousesPage() {
             <thead><tr><th className={th}>Nombre</th><th className={th}>Ciudad</th><th className={th}>Estado</th></tr></thead>
             <tbody>
               {warehouses.data.map(w => (
-                <tr key={w._id} onClick={() => setEditing(w)} className="cursor-pointer hover:bg-slate-50">
+                <tr key={w._id} onClick={() => setEditing(w)} className="cursor-pointer">
                   <td className={`${td} font-medium`}>{w.name}</td><td className={td}>{w.city}</td>
                   <td className={td}>{w.state === "active" ? <Badge variant="success">Activo</Badge> : <Badge>Inactivo</Badge>}</td>
                 </tr>
