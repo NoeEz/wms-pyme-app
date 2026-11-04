@@ -42,12 +42,12 @@ export default function ReportsPage() {
   return (
     <>
       <PageHeader title="Reportes" description="Consulta y exporta a Excel o PDF." />
-      <div className="mb-4 flex flex-wrap gap-1 border-b border-slate-200" role="tablist">
+      <div className="mb-6 grid min-w-0 grid-cols-1 gap-2 rounded-xl border border-slate-200 bg-white p-2 sm:grid-cols-3" role="tablist">
         {TABS.map(t => (
           <button
             key={t.key} role="tab" aria-selected={tab === t.key}
             onClick={() => setParams(p => { p.set("reporte", t.key); return p; }, { replace: true })}
-            className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium ${tab === t.key ? "border-indigo-600 text-indigo-700" : "border-transparent text-slate-500 hover:text-slate-800"}`}
+            className={`min-h-12 min-w-0 rounded-lg border px-4 py-3 text-left text-sm font-semibold leading-relaxed transition-colors sm:text-center ${tab === t.key ? "border-indigo-600 bg-indigo-600 text-white shadow-sm" : "border-transparent text-slate-600 hover:border-slate-200 hover:bg-slate-50 hover:text-slate-900"}`}
           >{t.label}</button>
         ))}
       </div>
@@ -91,9 +91,9 @@ function KardexReport() {
   ];
 
   return (
-    <Card padded={false}>
-      <div className="flex flex-wrap items-end gap-3 border-b border-slate-100 p-4">
-        <Field label="Producto" className="min-w-72 flex-1">
+    <Card padded={false} className="overflow-hidden [&_th]:whitespace-nowrap [&_td.tabular]:whitespace-nowrap [&_td>span.inline-flex]:rounded-md [&_td>span.inline-flex]:border [&_td>span.inline-flex]:border-slate-200 [&_td>span.inline-flex]:bg-slate-50 [&_td>span.inline-flex]:px-2.5 [&_td>span.inline-flex]:py-1.5 [&_td>span.inline-flex]:font-semibold">
+      <div className="grid min-w-0 grid-cols-1 items-end gap-4 border-b border-slate-200 bg-slate-50/60 p-4 sm:grid-cols-2 sm:p-5 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto] [&>label]:min-w-0">
+        <Field label="Producto" className="min-w-0 sm:col-span-2 xl:col-span-1">
           <Select value={productId} onChange={e => setParams(p => { p.set("producto", e.target.value); return p; }, { replace: true })}>
             <option value="">Selecciona un producto…</option>
             {products.data?.map(p => <option key={p._id} value={p._id}>{p.sku} · {p.name}</option>)}
@@ -101,7 +101,7 @@ function KardexReport() {
         </Field>
         {period.fields}
         {k && (
-          <div className="flex gap-2 pb-0.5">
+          <div className="flex min-w-0 flex-wrap justify-start gap-2 sm:justify-end [&>button]:min-h-10">
             <ExportButtons spec={() => ({
               fileName: exportName("kardex", k.product.sku),
               title: `Kardex ${k.product.sku} · ${k.product.name}`,
@@ -113,9 +113,9 @@ function KardexReport() {
       </div>
       {!productId ? <EmptyState icon="reports" title="Elige un producto" description="El kardex muestra cada entrada y salida con su saldo." /> : query.isPending ? <Loading /> : query.isError ? <div className="p-4"><ErrorBox message={errorMessage(query.error)} /></div> : k && (
         <>
-          <dl className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-4">
+          <dl className="grid min-w-0 grid-cols-1 gap-3 border-b border-slate-200 p-4 min-[400px]:grid-cols-2 sm:p-5 xl:grid-cols-4">
             {[["Saldo inicial", k.opening], ["Entradas", k.totals.in], ["Salidas", k.totals.out], ["Saldo final", k.closing]].map(([label, v]) => (
-              <div key={label} className="rounded-xl bg-slate-50 px-3 py-2"><dt className="text-xs text-slate-500">{label}</dt><dd className="tabular text-lg font-semibold">{fmtNumber(v as number)} <span className="text-xs font-normal text-slate-400">{k.product.unit}</span></dd></div>
+              <div key={label} className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 p-4 [container-type:inline-size]"><dt className="text-xs font-medium text-slate-500">{label}</dt><dd className="tabular mt-3 max-w-full overflow-x-auto whitespace-nowrap text-[clamp(1rem,8cqi,1.5rem)] font-semibold tracking-tight text-slate-900">{fmtNumber(v as number)} <span className="text-xs font-normal text-slate-500">{k.product.unit}</span></dd></div>
             ))}
           </dl>
           {k.rows.length === 0 ? <EmptyState title="Sin movimientos en el periodo" /> : (
@@ -125,14 +125,14 @@ function KardexReport() {
                 {k.rows.map((r, i) => (
                   <tr key={i}>
                     <td className={td}>{fmtDateTime(r.date)}</td>
-                    <td className={`${td} font-mono text-xs`}>{r.folio}</td>
+                    <td className={`${td} whitespace-nowrap font-mono text-xs font-medium text-slate-700`}>{r.folio}</td>
                     <td className={td}><MovementTypeBadge type={r.type} /></td>
-                    <td className={`${td} font-mono text-xs`}>{r.location}</td>
-                    <td className={`${td} text-xs`}>{[r.lot, r.serial].filter(Boolean).join(" · ") || "—"}</td>
+                    <td className={`${td} whitespace-nowrap font-mono text-xs font-medium text-slate-700`}>{r.location}</td>
+                    <td className={`${td} min-w-40 max-w-64 whitespace-normal break-all text-xs leading-relaxed`}>{[r.lot, r.serial].filter(Boolean).join(" · ") || "—"}</td>
                     <td className={td}>{r.user}</td>
-                    <td className={`${td} tabular text-right text-emerald-700`}>{r.in ? fmtNumber(r.in) : ""}</td>
-                    <td className={`${td} tabular text-right text-red-700`}>{r.out ? fmtNumber(r.out) : ""}</td>
-                    <td className={`${td} tabular text-right font-medium`}>{fmtNumber(r.balance)}</td>
+                    <td className={`${td} tabular text-right font-semibold text-emerald-700`}>{r.in ? fmtNumber(r.in) : ""}</td>
+                    <td className={`${td} tabular text-right font-semibold text-red-700`}>{r.out ? fmtNumber(r.out) : ""}</td>
+                    <td className={`${td} tabular text-right font-semibold text-slate-900`}>{fmtNumber(r.balance)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -172,16 +172,16 @@ function MovementsReport() {
   ];
 
   return (
-    <Card padded={false}>
-      <div className="flex flex-wrap items-end gap-3 border-b border-slate-100 p-4">
+    <Card padded={false} className="overflow-hidden [&_th]:whitespace-nowrap [&_td.tabular]:whitespace-nowrap [&_td>span.inline-flex]:rounded-md [&_td>span.inline-flex]:border [&_td>span.inline-flex]:border-slate-200 [&_td>span.inline-flex]:bg-slate-50 [&_td>span.inline-flex]:px-2.5 [&_td>span.inline-flex]:py-1.5 [&_td>span.inline-flex]:font-semibold">
+      <div className="grid min-w-0 grid-cols-1 items-end gap-4 border-b border-slate-200 bg-slate-50/60 p-4 sm:grid-cols-2 sm:p-5 xl:grid-cols-[repeat(3,minmax(0,1fr))_auto] [&>label]:min-w-0">
         {period.fields}
         <Field label="Tipo">
-          <Select value={type} onChange={e => setType(e.target.value as MovementType | "")} className="w-44">
+          <Select value={type} onChange={e => setType(e.target.value as MovementType | "")} className="w-full">
             <option value="">Todos</option>
             {(Object.keys(MOVEMENT_LABEL) as MovementType[]).map(t => <option key={t} value={t}>{MOVEMENT_LABEL[t]}</option>)}
           </Select>
         </Field>
-        <div className="flex gap-2 pb-0.5">
+        <div className="flex min-w-0 flex-wrap justify-start gap-2 sm:justify-end [&>button]:min-h-10">
           <ExportButtons disabled={!rows.length} spec={() => ({
             fileName: exportName("movimientos-periodo"), title: "Movimientos por periodo",
             subtitle: `${scope} · ${period.fromDay} a ${period.toDay}${type ? ` · ${MOVEMENT_LABEL[type]}` : ""}`, columns, rows,
@@ -195,11 +195,11 @@ function MovementsReport() {
             {rows.map((r, i) => (
               <tr key={i}>
                 <td className={td}>{fmtDateTime(r.date)}</td>
-                <td className={`${td} font-mono text-xs`}>{r.folio}</td>
+                <td className={`${td} whitespace-nowrap font-mono text-xs font-medium text-slate-700`}>{r.folio}</td>
                 <td className={td}><MovementTypeBadge type={r.type} /></td>
-                <td className={td}><p>{r.product}</p><p className="font-mono text-xs text-slate-500">{r.sku}{r.lot ? ` · lote ${r.lot}` : ""}{r.serial ? ` · serie ${r.serial}` : ""}</p></td>
+                <td className={td}><p className="min-w-48 max-w-80 whitespace-normal break-words font-semibold leading-relaxed text-slate-900">{r.product}</p><p className="mt-1 max-w-80 whitespace-normal break-all font-mono text-xs leading-relaxed text-slate-500">{r.sku}{r.lot ? ` · lote ${r.lot}` : ""}{r.serial ? ` · serie ${r.serial}` : ""}</p></td>
                 <td className={`${td} tabular text-right`}>{fmtNumber(r.quantity)}</td>
-                <td className={`${td} font-mono text-xs`}>{r.source ?? "—"} → {r.destination ?? "—"}</td>
+                <td className={`${td} whitespace-nowrap font-mono text-xs font-medium text-slate-700`}>{r.source ?? "—"} → {r.destination ?? "—"}</td>
                 {!isClient && <td className={td}>{r.user}</td>}
               </tr>
             ))}
@@ -235,10 +235,10 @@ function StockByLocationReport() {
   ];
 
   return (
-    <Card padded={false}>
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-4">
-        <p className="text-sm text-slate-600">{scope} · <span className="font-medium">{fmtMoney(total)}</span> valuado</p>
-        <div className="flex gap-2">
+    <Card padded={false} className="overflow-hidden [&_th]:whitespace-nowrap [&_td.tabular]:whitespace-nowrap [&_td>span.inline-flex]:rounded-md [&_td>span.inline-flex]:border [&_td>span.inline-flex]:border-slate-200 [&_td>span.inline-flex]:bg-slate-50 [&_td>span.inline-flex]:px-2.5 [&_td>span.inline-flex]:py-1.5 [&_td>span.inline-flex]:font-semibold">
+      <div className="flex min-w-0 flex-col items-start justify-between gap-4 border-b border-slate-200 bg-slate-50/60 p-4 sm:flex-row sm:flex-wrap sm:items-center sm:p-5">
+        <p className="min-w-0 flex-1 break-words text-sm leading-loose text-slate-600">{scope} · <span className="inline-block max-w-full overflow-x-auto whitespace-nowrap align-middle text-xl font-semibold tracking-tight text-slate-900">{fmtMoney(total)}</span> valuado</p>
+        <div className="flex flex-wrap gap-2 [&>button]:min-h-10">
           <ExportButtons disabled={!rows.length} spec={() => ({ fileName: exportName("existencias-ubicacion"), title: "Existencias por ubicación", subtitle: `${scope} · al ${new Date().toLocaleDateString("es-MX")}`, columns, rows })} />
         </div>
       </div>
@@ -249,10 +249,10 @@ function StockByLocationReport() {
             {rows.map((r, i) => (
               <tr key={i}>
                 <td className={td}>{r.warehouse}</td>
-                <td className={`${td} font-mono text-xs`}>{r.location}</td>
-                <td className={td}><p>{r.product}</p><p className="font-mono text-xs text-slate-500">{r.sku}</p></td>
-                <td className={td}>{r.customer ?? <span className="text-xs text-slate-400">Propio</span>}</td>
-                <td className={`${td} tabular text-right`}>{fmtNumber(r.available)} <span className="text-xs text-slate-400">{r.unit}</span></td>
+                <td className={`${td} whitespace-nowrap font-mono text-xs font-medium text-slate-700`}>{r.location}</td>
+                <td className={td}><p className="min-w-48 max-w-80 whitespace-normal break-words font-semibold leading-relaxed text-slate-900">{r.product}</p><p className="mt-1 max-w-80 whitespace-normal break-all font-mono text-xs leading-relaxed text-slate-500">{r.sku}</p></td>
+                <td className={td}>{r.customer ?? <span className="text-xs text-slate-500">Propio</span>}</td>
+                <td className={`${td} tabular text-right`}>{fmtNumber(r.available)} <span className="text-xs text-slate-500">{r.unit}</span></td>
                 <td className={`${td} tabular text-right`}>{fmtMoney(r.value)}</td>
               </tr>
             ))}

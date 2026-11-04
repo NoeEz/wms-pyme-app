@@ -71,17 +71,17 @@ export default function MovementsPage() {
         }
       />
 
-      <Card padded={false}>
-        <div className="flex flex-wrap items-end gap-3 border-b border-slate-100 p-4">
+      <Card padded={false} className="overflow-hidden [&_th]:whitespace-nowrap [&_td>span.inline-flex]:rounded-md [&_td>span.inline-flex]:border [&_td>span.inline-flex]:border-slate-200 [&_td>span.inline-flex]:bg-slate-50 [&_td>span.inline-flex]:px-2.5 [&_td>span.inline-flex]:py-1.5 [&_td>span.inline-flex]:font-semibold">
+        <div className="grid min-w-0 grid-cols-1 items-end gap-4 border-b border-slate-200 bg-slate-50/60 p-4 sm:grid-cols-2 sm:p-5 xl:grid-cols-3 [&>label]:min-w-0">
           <Field label="Desde"><Input type="date" value={fromDay} max={toDay} onChange={e => setFromDay(e.target.value)} /></Field>
           <Field label="Hasta"><Input type="date" value={toDay} min={fromDay} onChange={e => setToDay(e.target.value)} /></Field>
-          <Field label="Tipo">
-            <Select value={type} onChange={e => setType(e.target.value as MovementType | "")} className="w-48">
+          <Field label="Tipo" className="sm:col-span-2 xl:col-span-1">
+            <Select value={type} onChange={e => setType(e.target.value as MovementType | "")} className="w-full">
               <option value="">Todos</option>
               {(Object.keys(MOVEMENT_LABEL) as MovementType[]).map(t => <option key={t} value={t}>{MOVEMENT_LABEL[t]}</option>)}
             </Select>
           </Field>
-          {movements.length === LIMIT && <p className="pb-2 text-xs text-amber-700">Se muestran los {LIMIT} más recientes; acota el periodo o usa Reportes para el detalle completo.</p>}
+          {movements.length === LIMIT && <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-xs leading-relaxed text-amber-800 sm:col-span-2 xl:col-span-3">Se muestran los {LIMIT} más recientes; acota el periodo o usa Reportes para el detalle completo.</p>}
         </div>
         {query.isPending ? <Loading /> : query.isError ? <div className="p-4"><ErrorBox message={errorMessage(query.error)} onRetry={() => query.refetch()} /></div> : movements.length === 0 ? (
           <EmptyState icon="movements" title="Sin movimientos" description="No hay movimientos con estos filtros." />
@@ -99,15 +99,15 @@ export default function MovementsPage() {
               {movements.map(m => {
                 const lag = lagSeconds(m);
                 return (
-                  <tr key={m._id} onClick={() => setSelectedId(m._id)} className="cursor-pointer hover:bg-slate-50">
-                    <td className={`${td} font-mono text-xs`}>{m.folio}</td>
+                  <tr key={m._id} onClick={() => setSelectedId(m._id)} className="cursor-pointer">
+                    <td className={`${td} whitespace-nowrap font-mono text-xs font-semibold text-slate-800`}>{m.folio}</td>
                     <td className={td}><MovementTypeBadge type={m.type} /></td>
                     <td className={td}>{fmtDateTime(m.createdAt)}</td>
                     <td className={td}>{warehouseName(m.warehouseId)}</td>
                     {!isClient && <td className={td}>{userName(m)}</td>}
-                    <td className={`${td} max-w-56 truncate`}>{m.reference ?? <span className="text-slate-400">—</span>}</td>
+                    <td className={`${td} min-w-48 max-w-72 whitespace-normal break-words leading-relaxed`}>{m.reference ?? <span className="text-slate-500">—</span>}</td>
                     <td className={`${td} tabular text-right`}>{m.lines.length}</td>
-                    <td className={`${td} tabular text-right`}>{fmtNumber(units(m))}</td>
+                    <td className={`${td} tabular text-right font-semibold text-slate-900`}>{fmtNumber(units(m))}</td>
                     {!isClient && <td className={`${td} tabular text-right ${lag != null && lag > 900 ? "font-medium text-amber-700" : ""}`}>{fmtDuration(lag)}</td>}
                   </tr>
                 );
@@ -129,14 +129,14 @@ function MovementDetail({ id, onClose }: { id: string; onClose: () => void }) {
   return (
     <Modal open title={m?.folio ?? "Movimiento"} onClose={onClose} wide>
       {query.isPending ? <Loading /> : query.isError ? <ErrorBox message={errorMessage(query.error)} /> : m && (
-        <>
-          <div className="mb-4 flex flex-wrap items-center gap-3 text-sm text-slate-600">
+        <div className="min-w-0 [&_th]:whitespace-nowrap">
+          <div className="mb-5 flex min-w-0 flex-wrap items-center gap-x-4 gap-y-3 border-b border-slate-200 pb-5 text-sm leading-relaxed text-slate-600 [&>span.inline-flex]:max-w-full [&>span.inline-flex]:whitespace-normal [&>span.inline-flex]:rounded-md [&>span.inline-flex]:border [&>span.inline-flex]:border-slate-200 [&>span.inline-flex]:bg-slate-50 [&>span.inline-flex]:px-2.5 [&>span.inline-flex]:py-1.5 [&>span.inline-flex]:font-semibold">
             <MovementTypeBadge type={m.type} />
             <span>{fmtDateTime(m.createdAt)}</span>
             {typeof m.userId !== "string" && <span>· {m.userId.name}</span>}
             {m.capturedAt && <Badge>Capturado {fmtDateTime(m.capturedAt)}</Badge>}
           </div>
-          {m.reference && <p className="mb-4 text-sm text-slate-700"><span className="text-slate-500">Referencia:</span> {m.reference}</p>}
+          {m.reference && <p className="mb-5 break-words rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-relaxed text-slate-700"><span className="text-slate-500">Referencia:</span> {m.reference}</p>}
           <Table>
             <thead><tr><th className={th}>Producto</th><th className={`${th} text-right`}>Cantidad</th><th className={th}>Origen</th><th className={th}>Destino</th><th className={th}>Lote / serie</th></tr></thead>
             <tbody>
@@ -144,17 +144,17 @@ function MovementDetail({ id, onClose }: { id: string; onClose: () => void }) {
                 const p = typeof l.productId === "string" ? null : (l.productId as Product);
                 return (
                   <tr key={i}>
-                    <td className={td}><p className="font-medium">{p?.name ?? "—"}</p><p className="font-mono text-xs text-slate-500">{p?.sku}</p></td>
-                    <td className={`${td} tabular text-right`}>{fmtNumber(l.quantity)}</td>
-                    <td className={`${td} font-mono text-xs`}>{loc(l.sourceLocationId)}</td>
-                    <td className={`${td} font-mono text-xs`}>{loc(l.destinationLocationId)}</td>
-                    <td className={`${td} text-xs`}>{[l.lot, l.serial].filter(Boolean).join(" · ") || "—"}</td>
+                    <td className={td}><p className="min-w-48 max-w-72 whitespace-normal break-words font-semibold leading-relaxed text-slate-900">{p?.name ?? "—"}</p><p className="mt-1 break-all font-mono text-xs leading-relaxed text-slate-500">{p?.sku}</p></td>
+                    <td className={`${td} tabular whitespace-nowrap text-right font-semibold text-slate-900`}>{fmtNumber(l.quantity)}</td>
+                    <td className={`${td} whitespace-nowrap font-mono text-xs font-semibold text-slate-800`}>{loc(l.sourceLocationId)}</td>
+                    <td className={`${td} whitespace-nowrap font-mono text-xs font-semibold text-slate-800`}>{loc(l.destinationLocationId)}</td>
+                    <td className={`${td} min-w-40 max-w-64 whitespace-normal break-all text-xs leading-relaxed`}>{[l.lot, l.serial].filter(Boolean).join(" · ") || "—"}</td>
                   </tr>
                 );
               })}
             </tbody>
           </Table>
-        </>
+        </div>
       )}
     </Modal>
   );

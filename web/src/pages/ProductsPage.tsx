@@ -24,9 +24,9 @@ export default function ProductsPage() {
   return (
     <>
       <PageHeader title="Productos" description="Catálogo de la empresa y de sus clientes 3PL." actions={<Button icon="plus" onClick={() => setEditing("new")}>Nuevo producto</Button>} />
-      <Card padded={false}>
-        <div className="flex flex-wrap items-center gap-4 border-b border-slate-100 p-4">
-          <SearchInput value={search} onChange={setSearch} placeholder="SKU, nombre o código de barras" className="min-w-60 flex-1" />
+      <Card padded={false} className="overflow-hidden [&_th]:whitespace-nowrap [&_td.tabular]:whitespace-nowrap [&_td:first-child]:font-medium">
+        <div className="flex min-w-0 flex-col items-stretch gap-3 border-b border-slate-200 bg-slate-50/60 p-4 sm:flex-row sm:flex-wrap sm:items-center">
+          <SearchInput value={search} onChange={setSearch} placeholder="SKU, nombre o código de barras" className="w-full min-w-0 sm:min-w-60 sm:flex-1" />
           <label className="flex items-center gap-2 text-sm text-slate-600"><Toggle checked={showInactive} onChange={setShowInactive} label="Mostrar inactivos" /> Mostrar inactivos</label>
         </div>
         {products.isPending ? <Loading /> : products.isError ? <div className="p-4"><ErrorBox message={errorMessage(products.error)} /></div> : !filtered.length ? (
@@ -36,11 +36,11 @@ export default function ProductsPage() {
             <thead><tr><th className={th}>SKU</th><th className={th}>Nombre</th><th className={th}>Seguimiento</th><th className={th}>Dueño</th><th className={`${th} text-right`}>Mínimo</th><th className={`${th} text-right`}>Costo</th><th className={th}>Estado</th></tr></thead>
             <tbody>
               {filtered.map(p => (
-                <tr key={p._id} onClick={() => setEditing(p)} className="cursor-pointer hover:bg-slate-50">
-                  <td className={`${td} font-mono text-xs`}>{p.sku}</td>
-                  <td className={td}>{p.name} <span className="text-xs text-slate-400">({p.unit})</span></td>
+                <tr key={p._id} onClick={() => setEditing(p)} className="cursor-pointer">
+                  <td className={`${td} whitespace-nowrap font-mono text-xs font-medium text-slate-700`}>{p.sku}</td>
+                  <td className={td}>{p.name} <span className="text-xs text-slate-500">({p.unit})</span></td>
                   <td className={td}>{TRACKING_LABEL[p.tracking]}</td>
-                  <td className={td}>{p.customerId ? <Badge variant="info">{customerCode(p.customerId) ?? "Cliente"}</Badge> : <span className="text-xs text-slate-400">Propio</span>}</td>
+                  <td className={td}>{p.customerId ? <Badge variant="info">{customerCode(p.customerId) ?? "Cliente"}</Badge> : <span className="text-xs text-slate-500">Propio</span>}</td>
                   <td className={`${td} tabular text-right`}>{fmtNumber(p.lowStockThreshold)}</td>
                   <td className={`${td} tabular text-right`}>{fmtMoney(p.cost)}</td>
                   <td className={td}>{p.active === false ? <Badge>Inactivo</Badge> : <Badge variant="success">Activo</Badge>}</td>
@@ -93,7 +93,7 @@ function ProductForm({ product, onClose }: { product: Product | null; onClose: (
       open title={product ? `Editar ${product.sku}` : "Nuevo producto"} onClose={onClose}
       footer={<><Button variant="secondary" onClick={onClose}>Cancelar</Button><Button loading={save.isPending} disabled={!form.sku.trim() || !form.name.trim()} onClick={submit}>Guardar</Button></>}
     >
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid min-w-0 gap-4 sm:grid-cols-2 [&>label]:min-w-0">
         <Field label="SKU"><Input value={form.sku} onChange={e => set({ sku: e.target.value })} autoFocus={!product} /></Field>
         <Field label="Unidad"><Input value={form.unit} onChange={e => set({ unit: e.target.value })} placeholder="pza, caja, kg…" /></Field>
         <Field label="Nombre" className="sm:col-span-2"><Input value={form.name} onChange={e => set({ name: e.target.value })} /></Field>
