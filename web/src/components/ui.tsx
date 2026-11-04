@@ -158,14 +158,17 @@ export function Modal({ open, title, onClose, children, footer, wide }: { open: 
   }, [open, onClose]);
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4 sm:items-center" onMouseDown={e => e.target === e.currentTarget && onClose()}>
-      <div role="dialog" aria-modal="true" aria-label={title} className={`w-full ${wide ? "max-w-3xl" : "max-w-lg"} rounded-2xl bg-white shadow-xl`}>
-        <header className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+    // The dialog never grows past the viewport: header and footer stay put and
+    // only the body scrolls, so tall forms (e.g. the role permission matrix)
+    // don't push their first fields out of reach.
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" onMouseDown={e => e.target === e.currentTarget && onClose()}>
+      <div role="dialog" aria-modal="true" aria-label={title} className={`flex max-h-full w-full flex-col ${wide ? "max-w-3xl" : "max-w-lg"} rounded-2xl bg-white shadow-xl`}>
+        <header className="flex shrink-0 items-center justify-between border-b border-slate-100 px-5 py-4">
           <h2 className="text-base font-semibold text-slate-900">{title}</h2>
           <button onClick={onClose} className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600" aria-label="Cerrar"><Icon name="x" size={18} /></button>
         </header>
-        <div className="px-5 py-4">{children}</div>
-        {footer && <footer className="flex justify-end gap-2 border-t border-slate-100 px-5 py-3">{footer}</footer>}
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">{children}</div>
+        {footer && <footer className="flex shrink-0 justify-end gap-2 border-t border-slate-100 px-5 py-3">{footer}</footer>}
       </div>
     </div>
   );
