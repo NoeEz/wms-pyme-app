@@ -12,7 +12,7 @@ The app is offline-first for operators:
 - **Session** (`src/services/auth.ts`): login takes a company code (slug) + email + password — emails are unique per company, not globally; the last company code is remembered on the device. 3PL `client` users are rejected by the app (web portal only). Token in `expo-secure-store`, user + last warehouse in AsyncStorage; restored on launch (trusted offline, validated with `/auth/me` when reachable). Any 401 sends the user back to login; their queued movements stay and sync after they log back in.
 - **Scanning** (`src/services/scanning.ts` + `scanCodes.ts`): one pipeline for camera and handheld readers. Accepts versioned WMS labels (`WMSPYME|v1|sku=…|lot=…|serial=…`) and plain supplier barcodes (matched against `sku`/`barcodeValues`). Sound/vibration feedback honors the preferences in `src/services/preferences.ts`.
 
-Product phases (MVP → field operation → web portal → VPS/multi-company → advanced features) are tracked in `ROADMAP.md`.
+Product phases (MVP → field operation → web portal → VPS/multi-company → advanced features) are tracked in `ROADMAP.md`. Thesis sprints, epics and objectives are mapped to the repo in `AVANCE_TESINA.md`. CI lives in `.github/workflows/ci.yml`.
 
 ## Running the app
 
