@@ -1,12 +1,14 @@
-# Production (VPS): Caddy (HTTPS + portal) → API → MongoDB. Only Caddy
-# publishes ports; Docker bypasses ufw, so mongo and api must stay internal.
+# Production (VPS): host nginx (HTTPS, wms.devsoftmx.com) → web (Caddy:
+# portal + /api proxy) on 127.0.0.1:3003 → API → MongoDB. Docker bypasses
+# ufw, so nothing else publishes ports and web listens on loopback only.
 #
-#   docker compose -f docker-compose.prod.yml up -d --build   (reads DOMAIN and JWT_SECRET from .env)
+#   docker compose -f docker-compose.prod.yml up -d --build   (reads JWT_SECRET from .env)
 services:
   mongo:
     image: mongo:7
     restart: unless-stopped
-    command: ["--replSet", "rs0", "--bind_ip_all"]
+    # Small cache: the VPS is shared with other stacks (default is ~50% of RAM).
+    command: ["--replSet", "rs0", "--bind_ip_all", "--wiredTigerCacheSizeGB", "0.5"]
     volumes:
       - mongo_data:/data/db
     healthcheck:
@@ -25,7 +27,8 @@ services:
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-8h}
       RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-300}
       SEED_DEMO: "false"
-      TRUST_PROXY: 1
+      # Two proxies in front (host nginx, then Caddy) for the client's IP.
+      TRUST_PROXY: 2
     depends_on:
       mongo:
         condition: service_healthy
@@ -34,19 +37,11 @@ services:
     build: ./web
     restart: unless-stopped
     ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"
-    environment:
-      DOMAIN: ${DOMAIN:?set DOMAIN in .env}
+      - "127.0.0.1:${WEB_PORT:-3003}:80"
     volumes:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
     depends_on:
       - api
 
 volumes:
   mongo_data:
-  caddy_data:
-  caddy_config:

@@ -1,5 +1,5 @@
-# Builds the portal and serves it with Caddy, which also terminates HTTPS
-# and proxies /api and /health to the API (see deploy/Caddyfile).
+# Builds the portal and serves it with Caddy, which also proxies /api and
+# /health to the API (see deploy/Caddyfile). HTTPS is the host nginx's job.
 FROM node:24-alpine AS build
 WORKDIR /app
 COPY package*.json ./
