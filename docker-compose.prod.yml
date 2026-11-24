@@ -1,0 +1,41 @@
+# Production (VPS, backend only): host nginx (HTTPS, api.wms.devsoftmx.com)
+# → API on 127.0.0.1:3003 → MongoDB. The portal is a static build on the
+# Hostinger web hosting (wms.devsoftmx.com). Docker bypasses ufw, so the API
+# listens on loopback only and Mongo publishes nothing.
+#
+#   docker compose -f docker-compose.prod.yml up -d --build   (reads JWT_SECRET from .env)
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    # Small cache: the VPS is shared with other stacks (default is ~50% of RAM).
+    command: ["--replSet", "rs0", "--bind_ip_all", "--wiredTigerCacheSizeGB", "0.5"]
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: ./backend
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${API_PORT:-3003}:4000"
+    environment:
+      PORT: 4000
+      MONGODB_URI: "mongodb://mongo:27017/wms_pyme?directConnection=true"
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-8h}
+      RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-300}
+      SEED_DEMO: "false"
+      # One proxy in front (host nginx), for the client's IP.
+      TRUST_PROXY: 1
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://wms.devsoftmx.com}
+    depends_on:
+      mongo:
+        condition: service_healthy
+
+volumes:
+  mongo_data:

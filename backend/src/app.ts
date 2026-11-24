@@ -24,9 +24,10 @@ import { env } from "./config/env";
 
 export function createApp() {
   const app = express();
+  app.set("trust proxy", env.trustProxy);
 
   app.use(helmet());
-  app.use(cors());
+  app.use(cors(env.corsOrigins.length ? { origin: env.corsOrigins } : undefined));
   app.use(express.json());
   app.use(morgan("dev"));
 

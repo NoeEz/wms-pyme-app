@@ -1,0 +1,10 @@
+# Hostinger (Apache/LiteSpeed): the portal is a single-page app with
+# BrowserRouter, so any path that is not a real file serves index.html.
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+  RewriteRule ^index\.html$ - [L]
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule . /index.html [L]
+</IfModule>

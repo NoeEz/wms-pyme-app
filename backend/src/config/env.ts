@@ -14,4 +14,14 @@ export const env = {
   // Per client IP. A whole warehouse behind one public IP (phones + portal)
   // shares it, so production may need more than the default.
   rateLimitPerMinute: parseInt(process.env.RATE_LIMIT_PER_MINUTE ?? "300", 10),
+  // Production sets SEED_DEMO=false: an empty database must not get the
+  // demo users (public password) — create companies with createCompany.
+  seedDemo: process.env.SEED_DEMO !== "false",
+  // Reverse proxies in front of the API (Caddy in docker-compose.prod.yml),
+  // so rate limiting sees each client's IP instead of the proxy's.
+  trustProxy: parseInt(process.env.TRUST_PROXY ?? "0", 10),
+  // Browser origins allowed to call the API (the portal is on another
+  // domain in production), comma-separated. Empty = any origin; auth is a
+  // bearer token, not cookies. The mobile app sends no Origin.
+  corsOrigins: (process.env.CORS_ORIGINS ?? "").split(",").map(o => o.trim()).filter(Boolean),
 };
