@@ -1,6 +1,7 @@
-# Production (VPS): host nginx (HTTPS, wms.devsoftmx.com) → web (Caddy:
-# portal + /api proxy) on 127.0.0.1:3003 → API → MongoDB. Docker bypasses
-# ufw, so nothing else publishes ports and web listens on loopback only.
+# Production (VPS, backend only): host nginx (HTTPS, api.wms.devsoftmx.com)
+# → API on 127.0.0.1:3003 → MongoDB. The portal is a static build on the
+# Hostinger web hosting (wms.devsoftmx.com). Docker bypasses ufw, so the API
+# listens on loopback only and Mongo publishes nothing.
 #
 #   docker compose -f docker-compose.prod.yml up -d --build   (reads JWT_SECRET from .env)
 services:
@@ -20,6 +21,8 @@ services:
   api:
     build: ./backend
     restart: unless-stopped
+    ports:
+      - "127.0.0.1:${API_PORT:-3003}:4000"
     environment:
       PORT: 4000
       MONGODB_URI: "mongodb://mongo:27017/wms_pyme?directConnection=true"
@@ -27,21 +30,12 @@ services:
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-8h}
       RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-300}
       SEED_DEMO: "false"
-      # Two proxies in front (host nginx, then Caddy) for the client's IP.
-      TRUST_PROXY: 2
+      # One proxy in front (host nginx), for the client's IP.
+      TRUST_PROXY: 1
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://wms.devsoftmx.com}
     depends_on:
       mongo:
         condition: service_healthy
-
-  web:
-    build: ./web
-    restart: unless-stopped
-    ports:
-      - "127.0.0.1:${WEB_PORT:-3003}:80"
-    volumes:
-      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
-    depends_on:
-      - api
 
 volumes:
   mongo_data:

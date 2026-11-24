@@ -20,4 +20,8 @@ export const env = {
   // Reverse proxies in front of the API (Caddy in docker-compose.prod.yml),
   // so rate limiting sees each client's IP instead of the proxy's.
   trustProxy: parseInt(process.env.TRUST_PROXY ?? "0", 10),
+  // Browser origins allowed to call the API (the portal is on another
+  // domain in production), comma-separated. Empty = any origin; auth is a
+  // bearer token, not cookies. The mobile app sends no Origin.
+  corsOrigins: (process.env.CORS_ORIGINS ?? "").split(",").map(o => o.trim()).filter(Boolean),
 };

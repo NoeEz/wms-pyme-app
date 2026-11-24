@@ -41,4 +41,4 @@ jobs:
         # is sent here.
         run: ssh -T -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes "root@$VPS_HOST" deploy
       - name: Verificar desde fuera
-        run: curl -fsS --retry 5 --retry-delay 3 --retry-all-errors https://wms.devsoftmx.com/health
+        run: curl -fsS --retry 5 --retry-delay 3 --retry-all-errors https://api.wms.devsoftmx.com/health
