@@ -10,7 +10,7 @@ async function main() {
   // First boot against an empty database (fresh `docker compose up -d`, no
   // manual `npm run seed` required) — seed the same demo data every time the
   // collections are empty, so a wiped volume recovers on its own.
-  if ((await User.countDocuments()) === 0) {
+  if (env.seedDemo && (await User.countDocuments()) === 0) {
     console.log("[seed] no users found — seeding demo data automatically");
     await runSeed();
   }

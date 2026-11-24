@@ -7,11 +7,12 @@
     "preview": {
       "distribution": "internal",
       "android": { "buildType": "apk" },
-      "env": { "EXPO_PUBLIC_API_URL": "http://192.168.1.50:4000/api" }
+      "env": { "EXPO_PUBLIC_API_URL": "https://wms.devsoftmx.com/api" }
     },
     "production": {
       "autoIncrement": true,
-      "android": { "buildType": "app-bundle" }
+      "android": { "buildType": "app-bundle" },
+      "env": { "EXPO_PUBLIC_API_URL": "https://wms.devsoftmx.com/api" }
     }
   },
   "submit": {

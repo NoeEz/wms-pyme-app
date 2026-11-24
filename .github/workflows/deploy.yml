@@ -1,0 +1,44 @@
+name: Deploy
+
+# Deploys to the VPS after CI passes on a push to master. Never on pull
+# requests: workflow_run has access to secrets even for runs from forks.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Desplegar en el VPS
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Llave SSH
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$VPS_KNOWN_HOSTS" > ~/.ssh/known_hosts
+      - name: Ejecutar deploy/deploy.sh en el VPS
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+        # The key is a forced command on the VPS: it runs deploy.sh whatever
+        # is sent here.
+        run: ssh -T -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes "root@$VPS_HOST" deploy
+      - name: Verificar desde fuera
+        run: curl -fsS --retry 5 --retry-delay 3 --retry-all-errors https://wms.devsoftmx.com/health
